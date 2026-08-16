@@ -5,7 +5,7 @@ import { Card, Button, Field, inputClass, Pill } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { usePolling } from "@/hooks/use-polling";
 
-type BotConfigData = { language?: string; agentId?: string; greeting?: string };
+type BotConfigData = { language?: string; voice?: string; task?: string };
 type BotConfig = { id: string; name: string; config: BotConfigData };
 
 const LANGUAGES = [
@@ -16,13 +16,15 @@ const LANGUAGES = [
   { code: "es-ES", label: "Spanish" },
 ];
 
+const VOICES = ["June", "Josh", "Florian", "Derek", "Nat", "Paige"];
+
 export default function BotConfigsPage() {
   const toast = useToast();
   const [configs, setConfigs] = useState<BotConfig[] | null>(null);
   const [name, setName] = useState("");
   const [language, setLanguage] = useState("en-US");
-  const [agentId, setAgentId] = useState("");
-  const [greeting, setGreeting] = useState("");
+  const [voice, setVoice] = useState(VOICES[0]);
+  const [task, setTask] = useState("");
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
@@ -39,14 +41,13 @@ export default function BotConfigsPage() {
       const res = await fetch("/api/ops/bot-configs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, provider: "IVAY_VOICE", config: { language, agentId, greeting } }),
+        body: JSON.stringify({ name, provider: "IVAY_VOICE", config: { language, voice, task } }),
       });
       const data = await res.json();
       if (!res.ok) return toast(data.error, "error");
       toast(`Voice agent "${name}" created`);
       setName("");
-      setAgentId("");
-      setGreeting("");
+      setTask("");
       load();
     } finally {
       setCreating(false);
@@ -74,12 +75,27 @@ export default function BotConfigsPage() {
               ))}
             </select>
           </Field>
-          <Field label="Agent ID" hint="Internal reference for this voice agent">
-            <input className={inputClass} value={agentId} onChange={(e) => setAgentId(e.target.value)} />
+          <Field label="Voice">
+            <select className={inputClass} value={voice} onChange={(e) => setVoice(e.target.value)}>
+              {VOICES.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="Opening line" hint="What the bot says when a call connects">
-            <input className={inputClass} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="Hallo, hier ist..." />
-          </Field>
+          <div />
+          <div className="col-span-2">
+            <Field label="Agent instructions" hint="Full prompt — who the agent is, what it's calling about, how it should behave">
+              <textarea
+                className={`${inputClass} min-h-28`}
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+                required
+                placeholder="You are calling on behalf of Ivay to follow up on..."
+              />
+            </Field>
+          </div>
           <div className="col-span-2">
             <Button type="submit" variant="success" disabled={creating}>
               {creating ? "Creating…" : "Create voice agent"}
@@ -99,17 +115,19 @@ export default function BotConfigsPage() {
               <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-text-faint">
                 <th className="py-2">Name</th>
                 <th className="py-2">Language</th>
-                <th className="py-2">Opening line</th>
+                <th className="py-2">Voice</th>
+                <th className="py-2">Instructions</th>
               </tr>
             </thead>
             <tbody>
               {configs.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="py-2 font-medium">{c.name}</td>
-                  <td className="py-2">
+                  <td className="py-2 font-medium align-top">{c.name}</td>
+                  <td className="py-2 align-top">
                     <Pill value={LANGUAGES.find((l) => l.code === c.config.language)?.label ?? c.config.language ?? "—"} />
                   </td>
-                  <td className="py-2 text-text-dim">{c.config.greeting || "—"}</td>
+                  <td className="py-2 align-top text-text-dim">{c.config.voice || "—"}</td>
+                  <td className="py-2 max-w-md text-text-dim">{c.config.task || "—"}</td>
                 </tr>
               ))}
             </tbody>

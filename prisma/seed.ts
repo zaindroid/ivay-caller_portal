@@ -49,7 +49,11 @@ async function main() {
       id: "demo-bot-config-en",
       name: "English Outreach Agent",
       provider: "IVAY_VOICE",
-      config: { language: "en-US", agentId: "demo-agent-en", greeting: "Hi, this is Ivay calling on behalf of..." },
+      config: {
+        language: "en-US",
+        voice: "June",
+        task: "You are calling on behalf of Ivay, a voice AI company. Introduce yourself briefly, explain this is a quick outreach call, and ask if they have a moment to chat.",
+      },
     },
   });
 
@@ -60,7 +64,11 @@ async function main() {
       id: "demo-bot-config-de",
       name: "German Outreach Agent",
       provider: "IVAY_VOICE",
-      config: { language: "de-DE", agentId: "demo-agent-de", greeting: "Hallo, hier ist Ivay im Auftrag von..." },
+      config: {
+        language: "de-DE",
+        voice: "Florian",
+        task: "Du rufst im Auftrag von Ivay an, einem Voice-AI-Unternehmen. Stelle dich kurz vor und frage, ob gerade Zeit für ein kurzes Gespräch ist.",
+      },
     },
   });
 

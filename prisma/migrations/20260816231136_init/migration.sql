@@ -59,6 +59,7 @@ CREATE TABLE "Lead" (
     "email" TEXT,
     "status" "LeadStatus" NOT NULL DEFAULT 'PENDING',
     "note" TEXT,
+    "externalCallId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -124,6 +125,9 @@ CREATE UNIQUE INDEX "Campaign_webhookSecret_key" ON "Campaign"("webhookSecret");
 
 -- CreateIndex
 CREATE INDEX "Campaign_accountId_idx" ON "Campaign"("accountId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Lead_externalCallId_key" ON "Lead"("externalCallId");
 
 -- CreateIndex
 CREATE INDEX "Lead_campaignId_status_idx" ON "Lead"("campaignId", "status");

@@ -1,36 +1,23 @@
 import { prisma } from "@/lib/db";
 import { ami, isAmiConnected } from "./ami";
 import { addLog } from "./logs";
-import type { LeadStatus } from "@/app/generated/prisma/client";
+import { placeCall, type BlandWebhookPayload } from "@/lib/telephony/bland";
 
 /**
- * Multi-campaign outbound dialing engine — ported from the caller_agent
- * prototype's dialer/index.js. The prototype tracked one global campaign
- * against module-level objects (leads[], activeCalls{}, etc); this version
- * keys everything by campaignId and persists lead/call state to Postgres
- * instead of losing it on restart. The AMI event-handling shape (Newchannel,
- * Hangup, OriginateResponse, Bridge/BridgeEnter, DeviceStateChange) and the
- * throttled dialNext() loop are unchanged in spirit.
+ * Multi-campaign outbound dialing engine. Campaign calls are placed through
+ * the voice-AI telephony backend (lib/telephony/bland.ts) — one API call per
+ * lead, no PBX/SIP layer of our own involved in the campaign call path.
+ * Concurrency is tracked by counting DIALING leads in Postgres rather than
+ * in-memory state, since there's no persistent per-call channel/session to
+ * hold onto the way there was with an AMI-originated call.
  *
- * NOTE: this assumes an Asterisk dialplan exists (on the VPS, not in this
- * repo — same as the prototype) with a `from-dialer` context whose answering
- * extension bridges to whatever bot provider the campaign's BotConfig names.
- * That extension is expected to POST to /api/bot/callback to report
- * connect/transfer/hangup events back here where AMI events don't cover it.
+ * The Asterisk/AMI connection (ami.ts) is kept for a separate, narrower job:
+ * human-agent SIP extension presence (lib/dialer/agents.ts), not campaign
+ * dialing.
  */
 
-// uniqueid -> { campaignId, leadId }
-const activeCalls = new Map<string, { campaignId: string; leadId: string }>();
-// uniqueid -> asterisk channel name
-const activeChannels = new Map<string, string>();
 // extension -> { state, channel?, since }
 const agentStates = new Map<number, { state: string; channel?: string; since: string }>();
-
-function activeCallCountFor(campaignId: string) {
-  let n = 0;
-  for (const v of activeCalls.values()) if (v.campaignId === campaignId) n++;
-  return n;
-}
 
 export function getAgentStates() {
   return Object.fromEntries(agentStates);
@@ -41,68 +28,97 @@ async function isAgentExtension(ext: number) {
   return !!row;
 }
 
-async function markLead(leadId: string, status: LeadStatus, note?: string) {
+async function markLead(leadId: string, status: "COMPLETED" | "FAILED", note?: string) {
   await prisma.lead.update({ where: { id: leadId }, data: { status, note } });
 }
 
-async function recordCallHistory(campaignId: string, leadId: string, outcome: LeadStatus, note?: string) {
-  await prisma.callHistory.create({
-    data: { campaignId, leadId, outcome, note },
-  });
+async function recordCallHistory(campaignId: string, leadId: string, outcome: "COMPLETED" | "FAILED", note?: string) {
+  await prisma.callHistory.create({ data: { campaignId, leadId, outcome, note } });
 }
 
-/** Originates the next batch of pending leads for a campaign, up to its maxConcurrent. */
+function webhookUrl() {
+  const base = process.env.APP_URL || (process.env.COOLIFY_FQDN ? `https://${process.env.COOLIFY_FQDN}` : "http://localhost:3000");
+  return `${base}/api/bland/webhook`;
+}
+
+/** Places calls for a campaign's next pending leads, up to its maxConcurrent. */
 export async function dialNext(campaignId: string) {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
-    include: { phoneNumber: true },
+    include: { phoneNumber: true, botConfig: true },
   });
   if (!campaign || campaign.status !== "ACTIVE") return;
   if (!campaign.phoneNumber) {
     addLog("error", `Campaign ${campaignId} has no phone number assigned — cannot dial`);
     return;
   }
+  if (!campaign.botConfig) {
+    addLog("error", `Campaign ${campaignId} has no voice agent assigned — cannot dial`);
+    return;
+  }
 
-  while (activeCallCountFor(campaignId) < campaign.maxConcurrent) {
+  const config = (campaign.botConfig.config as Record<string, unknown>) || {};
+  const task = (config.task as string) || (config.greeting as string) || "You are calling on behalf of Ivay. Introduce yourself briefly and ask how you can help.";
+  const voice = config.voice as string | undefined;
+  const language = config.language as string | undefined;
+
+  let activeCount = await prisma.lead.count({ where: { campaignId, status: "DIALING" } });
+
+  while (activeCount < campaign.maxConcurrent) {
     const lead = await prisma.lead.findFirst({
       where: { campaignId, status: "PENDING" },
       orderBy: { createdAt: "asc" },
     });
+    if (!lead) break;
 
-    if (!lead) {
-      if (activeCallCountFor(campaignId) === 0) {
-        await prisma.campaign.update({ where: { id: campaignId }, data: { status: "COMPLETED" } });
-        addLog("info", `Campaign ${campaignId} complete`);
-      }
-      return;
+    try {
+      const { callId } = await placeCall({
+        to: lead.phone,
+        from: campaign.phoneNumber.number,
+        task,
+        voice,
+        language,
+        webhookUrl: webhookUrl(),
+        metadata: { leadId: lead.id, campaignId },
+      });
+      await prisma.lead.update({ where: { id: lead.id }, data: { status: "DIALING", externalCallId: callId } });
+      addLog("info", `Dialing ${lead.name} at ${lead.phone} (call ${callId})`);
+    } catch (e) {
+      await markLead(lead.id, "FAILED", (e as Error).message);
+      await recordCallHistory(campaignId, lead.id, "FAILED", (e as Error).message);
+      addLog("error", `Call failed for ${lead.phone}: ${(e as Error).message}`);
     }
-
-    await markLead(lead.id, "DIALING");
-    addLog("info", `Dialing ${lead.name} at ${lead.phone} (campaign ${campaignId})`);
-
-    const actionId = `lead-${lead.id}`;
-    ami.action(
-      {
-        action: "Originate",
-        channel: `PJSIP/${lead.phone}@${campaign.phoneNumber.trunkName}`,
-        context: "from-dialer",
-        exten: process.env.DIALER_ANSWER_EXTENSION || "ivay-bot",
-        priority: 1,
-        callerid: campaign.phoneNumber.number,
-        timeout: 30000,
-        actionid: actionId,
-        variable: `LEAD_ID=${lead.id},CAMPAIGN_ID=${campaignId}`,
-        async: "true",
-      },
-      async (err: Error | null) => {
-        if (err) {
-          await markLead(lead.id, "FAILED", err.message || "AMI error");
-          addLog("error", `AMI error for lead ${lead.id}: ${err.message}`);
-          void dialNext(campaignId);
-        }
-      }
-    );
+    activeCount++;
   }
+
+  const remaining = await prisma.lead.count({ where: { campaignId, status: { in: ["PENDING", "DIALING"] } } });
+  if (remaining === 0) {
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: "COMPLETED" } });
+    addLog("info", `Campaign ${campaignId} complete`);
+  }
+}
+
+/** Called by /api/bland/webhook when a call finishes. */
+export async function handleCallWebhook(payload: BlandWebhookPayload) {
+  const leadId = payload.metadata?.leadId;
+  const lead = leadId
+    ? await prisma.lead.findUnique({ where: { id: leadId } })
+    : await prisma.lead.findFirst({ where: { externalCallId: payload.call_id } });
+  if (!lead) {
+    addLog("warn", `Bland webhook for unknown call ${payload.call_id}`);
+    return;
+  }
+  if (lead.status !== "DIALING") return; // already handled (duplicate webhook delivery)
+
+  const failed = Boolean(payload.status && /fail|no.?answer|busy|error/i.test(payload.status));
+  const outcome = failed ? "FAILED" : "COMPLETED";
+  const note = failed ? payload.status : undefined;
+
+  await markLead(lead.id, outcome, note);
+  await recordCallHistory(lead.campaignId, lead.id, outcome, note);
+  addLog("info", `Call ${outcome === "COMPLETED" ? "completed" : "failed"} for ${lead.phone}`);
+
+  void dialNext(lead.campaignId);
 }
 
 export async function startCampaign(campaignId: string) {
@@ -140,6 +156,8 @@ export async function campaignStatus(campaignId: string) {
 }
 
 // ── AMI event wiring (module-level, runs once per process) ──────────────────
+// Now scoped to human-agent extension presence only -- campaign dialing no
+// longer goes through AMI. Kept so the Agents page still shows live status.
 let wired = false;
 export function wireAmiEvents() {
   if (wired) return;
@@ -147,10 +165,6 @@ export function wireAmiEvents() {
 
   ami.on("managerevent", async (evt: Record<string, string>) => {
     try {
-      if (evt.event === "Newchannel" && evt.uniqueid) {
-        activeChannels.set(evt.uniqueid, evt.channel);
-      }
-
       if (evt.event === "DeviceStateChange" || evt.event === "ExtensionStatus") {
         const extStr = (evt.device || evt.exten || "").replace("PJSIP/", "");
         const ext = parseInt(extStr, 10);
@@ -169,58 +183,6 @@ export function wireAmiEvents() {
         const m = evt.channel.match(/PJSIP\/(\d{4})-/);
         if (m && (await isAgentExtension(parseInt(m[1], 10)))) {
           agentStates.set(parseInt(m[1], 10), { state: "Not in use", since: new Date().toISOString() });
-        }
-      }
-
-      if (evt.event === "Hangup" && activeCalls.has(evt.uniqueid)) {
-        const { campaignId, leadId } = activeCalls.get(evt.uniqueid)!;
-        activeCalls.delete(evt.uniqueid);
-        activeChannels.delete(evt.uniqueid);
-
-        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-        if (lead) {
-          if (lead.status === "DIALING") {
-            const note = `Cause: ${evt["cause-txt"] || evt.cause || "unknown"}`;
-            await markLead(leadId, "FAILED", note);
-            await recordCallHistory(campaignId, leadId, "FAILED", note);
-            addLog("warn", `Call failed for ${lead.phone}: ${note}`);
-          } else if (lead.status === "CONNECTED") {
-            await markLead(leadId, "COMPLETED");
-            await recordCallHistory(campaignId, leadId, "COMPLETED");
-            addLog("info", `Call completed for ${lead.phone}`);
-          }
-        }
-        void dialNext(campaignId);
-      }
-
-      if (evt.event === "OriginateResponse") {
-        const leadId = (evt.actionid || "").replace("lead-", "");
-        if (!leadId) return;
-        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-        if (!lead) return;
-
-        if (evt.response === "Failure" || evt.response === "Error") {
-          const note = evt.reason || "Originate failed";
-          await markLead(leadId, "FAILED", note);
-          if (evt.uniqueid) activeCalls.delete(evt.uniqueid);
-          addLog("error", `Originate failed for ${lead.phone}: ${note}`);
-          void dialNext(lead.campaignId);
-        } else if (evt.uniqueid) {
-          activeCalls.set(evt.uniqueid, { campaignId: lead.campaignId, leadId });
-          await markLead(leadId, "DIALING");
-          addLog("info", `Dialing ${lead.phone} (lead ${leadId})`);
-        }
-      }
-
-      if (evt.event === "Bridge" || evt.event === "BridgeEnter") {
-        for (const uid of [evt.uniqueid, evt.uniqueid2]) {
-          if (!uid || !activeCalls.has(uid)) continue;
-          const { leadId } = activeCalls.get(uid)!;
-          const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-          if (lead && lead.status === "DIALING") {
-            await markLead(leadId, "CONNECTED");
-            addLog("info", `${lead.phone} connected`);
-          }
         }
       }
     } catch (e) {

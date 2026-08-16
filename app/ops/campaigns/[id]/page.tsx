@@ -12,9 +12,8 @@ type CampaignDetail = {
   name: string;
   status: string;
   maxConcurrent: number;
-  webhookSecret: string;
   phoneNumber: { number: string; region: string } | null;
-  botConfig: { name: string; config: { language?: string } } | null;
+  botConfig: { name: string; config: { language?: string; task?: string } } | null;
   account: { id: string; name: string };
 };
 type Status = { counts: Record<string, number>; ami: string };
@@ -121,7 +120,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               Pause
             </Button>
             <div className="pt-2 text-xs text-text-faint">
-              AMI: <span className={status?.ami === "connected" ? "text-success" : "text-danger"}>{status?.ami ?? "unknown"}</span>
+              Agent line: <span className={status?.ami === "connected" ? "text-success" : "text-danger"}>{status?.ami ?? "unknown"}</span>
             </div>
           </div>
         </Card>
@@ -151,14 +150,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </dl>
         </Card>
 
-        <Card title="Bot callback webhook" className="col-span-1">
-          <p className="mb-2 text-xs text-text-faint">
-            Give the Asterisk-side bot bridge this token via the <code className="text-text-dim">x-campaign-token</code> header when it
-            calls <code className="text-text-dim">/api/bot/callback</code>.
-          </p>
-          <code className="block break-all rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-accent">
-            {campaign.webhookSecret}
-          </code>
+        <Card title="Agent prompt" className="col-span-1">
+          {campaign.botConfig?.config?.task ? (
+            <p className="text-xs text-text-dim whitespace-pre-wrap">{campaign.botConfig.config.task}</p>
+          ) : (
+            <p className="text-xs text-text-faint">
+              No prompt set — edit this campaign&apos;s voice agent on the Voice Agents page.
+            </p>
+          )}
         </Card>
       </div>
 

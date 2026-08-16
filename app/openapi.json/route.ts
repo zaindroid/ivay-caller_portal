@@ -9,10 +9,10 @@ const spec = {
     "/version": { get: { summary: "Build info", responses: { "200": { description: "OK" } } } },
     "/api/auth/login": { post: { summary: "Log in", responses: { "200": { description: "OK" }, "401": { description: "Invalid credentials" } } } },
     "/api/auth/logout": { post: { summary: "Log out", responses: { "200": { description: "OK" } } } },
-    "/api/bot/callback": {
+    "/api/bland/webhook": {
       post: {
-        summary: "Bot bridge transfer callback (scoped per campaign via x-campaign-token)",
-        responses: { "200": { description: "Transferred" }, "401": { description: "Invalid/missing campaign token" } },
+        summary: "Telephony backend call-completion webhook",
+        responses: { "200": { description: "OK" }, "400": { description: "Missing call_id" } },
       },
     },
   },

@@ -99,6 +99,11 @@ model Lead {
   status     LeadStatus @default(PENDING)
   note       String?
 
+  // Bland call id for this lead's most recent call attempt -- lets the
+  // webhook (which only carries Bland's call_id) find its way back to the
+  // right lead/campaign.
+  externalCallId String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

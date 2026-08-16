@@ -60,8 +60,8 @@ export default function NumbersPage() {
           <Field label="Region">
             <input className={inputClass} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="US-East" required />
           </Field>
-          <Field label="Trunk name" hint="Must match pjsip.conf endpoint">
-            <input className={inputClass} value={trunkName} onChange={(e) => setTrunkName(e.target.value)} required />
+          <Field label="Trunk name" hint="Internal label — not used for Bland-routed numbers">
+            <input className={inputClass} value={trunkName} onChange={(e) => setTrunkName(e.target.value)} placeholder="bland" required />
           </Field>
           <Field label="Assign to account" hint="Optional">
             <select className={inputClass} value={accountId} onChange={(e) => setAccountId(e.target.value)}>

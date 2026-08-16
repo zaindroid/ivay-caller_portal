@@ -19,3 +19,10 @@ env:
     required: true
   AMI_PASS:
     required: true
+  # Telephony backend (campaign call placement + webhook delivery target).
+  BLAND_API_KEY:
+    required: true
+  BLAND_ENCRYPTED_KEY:
+    required: true
+  APP_URL:
+    required: true
