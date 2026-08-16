@@ -20,6 +20,7 @@ export type PlaceCallInput = {
   task: string;
   voice?: string;
   language?: string;
+  firstSentence?: string;
   webhookUrl: string;
   metadata: Record<string, string>;
 };
@@ -45,6 +46,7 @@ export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult>
       task: input.task,
       voice: input.voice || undefined,
       language: input.language || undefined,
+      first_sentence: input.firstSentence || undefined,
       webhook: input.webhookUrl,
       metadata: input.metadata,
       max_duration: 15,

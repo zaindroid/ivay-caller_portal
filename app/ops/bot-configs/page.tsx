@@ -5,7 +5,7 @@ import { Card, Button, Field, inputClass, Pill } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { usePolling } from "@/hooks/use-polling";
 
-type BotConfigData = { language?: string; voice?: string; task?: string };
+type BotConfigData = { language?: string; voice?: string; task?: string; firstSentence?: string };
 type BotConfig = { id: string; name: string; config: BotConfigData };
 
 const LANGUAGES = [
@@ -16,7 +16,7 @@ const LANGUAGES = [
   { code: "es-ES", label: "Spanish" },
 ];
 
-const VOICES = ["June", "Josh", "Florian", "Derek", "Nat", "Paige"];
+const VOICES = ["Karen", "June", "Josh", "Florian", "Derek", "Nat", "Paige", "Mason", "Martha"];
 
 export default function BotConfigsPage() {
   const toast = useToast();
@@ -24,6 +24,7 @@ export default function BotConfigsPage() {
   const [name, setName] = useState("");
   const [language, setLanguage] = useState("en-US");
   const [voice, setVoice] = useState(VOICES[0]);
+  const [firstSentence, setFirstSentence] = useState("");
   const [task, setTask] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -41,12 +42,13 @@ export default function BotConfigsPage() {
       const res = await fetch("/api/ops/bot-configs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, provider: "IVAY_VOICE", config: { language, voice, task } }),
+        body: JSON.stringify({ name, provider: "IVAY_VOICE", config: { language, voice, firstSentence, task } }),
       });
       const data = await res.json();
       if (!res.ok) return toast(data.error, "error");
       toast(`Voice agent "${name}" created`);
       setName("");
+      setFirstSentence("");
       setTask("");
       load();
     } finally {
@@ -84,9 +86,19 @@ export default function BotConfigsPage() {
               ))}
             </select>
           </Field>
-          <div />
+          <Field label="Opening line" hint="Exact words the agent starts with — leave blank to let it improvise (not recommended)">
+            <input
+              className={inputClass}
+              value={firstSentence}
+              onChange={(e) => setFirstSentence(e.target.value)}
+              placeholder="Hi, this is Ivay calling — do you have a quick moment?"
+            />
+          </Field>
           <div className="col-span-2">
-            <Field label="Agent instructions" hint="Full prompt — who the agent is, what it's calling about, how it should behave">
+            <Field
+              label="Agent instructions"
+              hint="Full prompt — who the agent is, what it's calling about, how it should behave. Don't mention this is a test, demo, or reference any internal system."
+            >
               <textarea
                 className={`${inputClass} min-h-28`}
                 value={task}
@@ -116,6 +128,7 @@ export default function BotConfigsPage() {
                 <th className="py-2">Name</th>
                 <th className="py-2">Language</th>
                 <th className="py-2">Voice</th>
+                <th className="py-2">Opening line</th>
                 <th className="py-2">Instructions</th>
               </tr>
             </thead>
@@ -127,6 +140,7 @@ export default function BotConfigsPage() {
                     <Pill value={LANGUAGES.find((l) => l.code === c.config.language)?.label ?? c.config.language ?? "—"} />
                   </td>
                   <td className="py-2 align-top text-text-dim">{c.config.voice || "—"}</td>
+                  <td className="py-2 max-w-xs align-top text-text-dim">{c.config.firstSentence || "—"}</td>
                   <td className="py-2 max-w-md text-text-dim">{c.config.task || "—"}</td>
                 </tr>
               ))}

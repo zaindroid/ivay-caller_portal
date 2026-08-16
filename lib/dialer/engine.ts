@@ -61,6 +61,7 @@ export async function dialNext(campaignId: string) {
   const task = (config.task as string) || (config.greeting as string) || "You are calling on behalf of Ivay. Introduce yourself briefly and ask how you can help.";
   const voice = config.voice as string | undefined;
   const language = config.language as string | undefined;
+  const firstSentence = config.firstSentence as string | undefined;
 
   let activeCount = await prisma.lead.count({ where: { campaignId, status: "DIALING" } });
 
@@ -78,6 +79,7 @@ export async function dialNext(campaignId: string) {
         task,
         voice,
         language,
+        firstSentence,
         webhookUrl: webhookUrl(),
         metadata: { leadId: lead.id, campaignId },
       });
