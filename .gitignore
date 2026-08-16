@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/app/generated/prisma
+
+# dev-only: AMI-generated Asterisk config, written by lib/dialer/agents.ts
+/asterisk-etc-dev/

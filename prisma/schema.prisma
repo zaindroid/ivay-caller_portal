@@ -1,0 +1,166 @@
+// Ivay Caller Portal — data model
+// Two role-scoped surfaces (ops console / client portal) share this schema.
+// See C:\Users\zain_\.claude\plans\ok-go-through-my-virtual-swan.md for the plan this implements.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OPS
+  CLIENT
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum LeadStatus {
+  PENDING
+  DIALING
+  CONNECTED
+  COMPLETED
+  FAILED
+  TRANSFERRED
+}
+
+enum BotProvider {
+  IVAY_VOICE
+}
+
+// A client company. Ops staff are Users with accountId = null.
+model Account {
+  id          String   @id @default(cuid())
+  name        String
+  notifyEmail String?
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users        User[]
+  campaigns    Campaign[]
+  phoneNumbers PhoneNumber[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  accountId    String?
+  account      Account? @relation(fields: [accountId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([accountId])
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  accountId     String
+  account       Account        @relation(fields: [accountId], references: [id])
+  name          String
+  status        CampaignStatus @default(DRAFT)
+  maxConcurrent Int            @default(3)
+  // Shared secret the Asterisk-side bot bridge presents to /api/bot/callback
+  // so transfer/connect callbacks are scoped to this campaign instead of the
+  // prototype's unauthenticated global /api/transfer endpoint.
+  webhookSecret String         @unique @default(cuid())
+
+  phoneNumberId String?
+  phoneNumber   PhoneNumber? @relation(fields: [phoneNumberId], references: [id])
+
+  botConfigId String?
+  botConfig   BotConfig? @relation(fields: [botConfigId], references: [id])
+
+  leads       Lead[]
+  callHistory CallHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId])
+}
+
+model Lead {
+  id         String     @id @default(cuid())
+  campaignId String
+  campaign   Campaign   @relation(fields: [campaignId], references: [id])
+  name       String
+  phone      String
+  email      String?
+  status     LeadStatus @default(PENDING)
+  note       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  callHistory CallHistory[]
+
+  @@index([campaignId, status])
+}
+
+// One row per completed call attempt — replaces the prototype's in-memory,
+// 100-entry-capped callHistory[] array that was lost on every restart.
+model CallHistory {
+  id         String     @id @default(cuid())
+  campaignId String
+  campaign   Campaign   @relation(fields: [campaignId], references: [id])
+  leadId     String
+  lead       Lead       @relation(fields: [leadId], references: [id])
+  outcome    LeadStatus
+  note       String?
+  startedAt  DateTime?
+  endedAt    DateTime   @default(now())
+
+  @@index([campaignId])
+  @@index([leadId])
+}
+
+// The number pool ivay provisions and assigns — generalizes the prototype's
+// single hardcoded pstnTrunk/callerId to per-account, per-region numbers.
+model PhoneNumber {
+  id        String   @id @default(cuid())
+  number    String   @unique
+  region    String
+  trunkName String
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id])
+
+  campaigns Campaign[]
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+}
+
+// Ops-managed bot configuration, keyed per campaign. `config` shape depends
+// on `provider` — see lib/bot-providers for the interface this backs.
+model BotConfig {
+  id       String      @id @default(cuid())
+  provider BotProvider
+  name     String
+  config   Json
+
+  campaigns Campaign[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Human-agent SIP extensions for live-transfer handoff (ops-managed).
+model AgentExtension {
+  id        String   @id @default(cuid())
+  extension Int      @unique
+  name      String
+  password  String
+
+  createdAt DateTime @default(now())
+}

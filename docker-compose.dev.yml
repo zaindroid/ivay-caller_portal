@@ -1,0 +1,23 @@
+name: ivay-portal-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ivay
+      POSTGRES_PASSWORD: ivay_dev_local
+      POSTGRES_DB: ivay_portal
+    ports:
+      - "5433:5432"
+    volumes:
+      - ivay_portal_db:/var/lib/postgresql/data
+
+  asterisk:
+    build: ./docker/asterisk
+    ports:
+      - "5038:5038"
+      - "5060:5060/udp"
+      - "10000-10100:10000-10100/udp"
+
+volumes:
+  ivay_portal_db:
