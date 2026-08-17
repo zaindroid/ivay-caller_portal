@@ -16,7 +16,9 @@ function requireEnv(name: string): string {
 
 export type PlaceCallInput = {
   to: string;
-  from: string;
+  /** Omit to let Bland use its own default outbound number. Only needed for
+   *  a BYOT (Bring Your Own Twilio) number, alongside BLAND_ENCRYPTED_KEY. */
+  from?: string;
   task: string;
   voice?: string;
   language?: string;
@@ -31,7 +33,9 @@ export type PlaceCallResult = {
 
 export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult> {
   const apiKey = requireEnv("BLAND_API_KEY");
-  const encryptedKey = requireEnv("BLAND_ENCRYPTED_KEY");
+  // Only relevant when calling from a BYOT number -- Bland's own default
+  // number needs neither `from` nor a Twilio encrypted_key.
+  const encryptedKey = input.from ? process.env.BLAND_ENCRYPTED_KEY : undefined;
 
   const res = await fetch(`${BLAND_API_BASE}/v1/calls`, {
     method: "POST",
@@ -41,8 +45,8 @@ export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult>
     },
     body: JSON.stringify({
       phone_number: input.to,
-      from: input.from,
-      encrypted_key: encryptedKey,
+      from: input.from || undefined,
+      encrypted_key: encryptedKey || undefined,
       task: input.task,
       voice: input.voice || undefined,
       language: input.language || undefined,

@@ -13,8 +13,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       prisma.campaign.findUnique({ where: { id } }),
     ]);
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
-    if (!campaign.phoneNumberId) {
-      return NextResponse.json({ error: "Assign a phone number before starting" }, { status: 400 });
+    if (!campaign.botConfigId) {
+      return NextResponse.json({ error: "Assign a voice agent before starting" }, { status: 400 });
     }
     if (leadCount === 0) {
       return NextResponse.json({ error: "No pending leads to dial" }, { status: 400 });

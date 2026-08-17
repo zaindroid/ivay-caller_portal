@@ -22,7 +22,9 @@ env:
   # Telephony backend (campaign call placement + webhook delivery target).
   BLAND_API_KEY:
     required: true
-  BLAND_ENCRYPTED_KEY:
-    required: true
   APP_URL:
     required: true
+  # Optional -- only needed if/when a campaign uses a BYOT (Bring Your Own
+  # Twilio) number instead of Bland's own default outbound number.
+  # BLAND_ENCRYPTED_KEY: not declared here since it's optional; set directly
+  # in Coolify if a BYOT number is ever assigned to a campaign.

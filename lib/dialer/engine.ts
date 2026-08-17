@@ -48,10 +48,6 @@ export async function dialNext(campaignId: string) {
     include: { phoneNumber: true, botConfig: true },
   });
   if (!campaign || campaign.status !== "ACTIVE") return;
-  if (!campaign.phoneNumber) {
-    addLog("error", `Campaign ${campaignId} has no phone number assigned — cannot dial`);
-    return;
-  }
   if (!campaign.botConfig) {
     addLog("error", `Campaign ${campaignId} has no voice agent assigned — cannot dial`);
     return;
@@ -75,7 +71,7 @@ export async function dialNext(campaignId: string) {
     try {
       const { callId } = await placeCall({
         to: lead.phone,
-        from: campaign.phoneNumber.number,
+        from: campaign.phoneNumber?.number,
         task,
         voice,
         language,
