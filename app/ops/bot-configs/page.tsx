@@ -5,7 +5,7 @@ import { Card, Button, Field, inputClass, Pill } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { usePolling } from "@/hooks/use-polling";
 import { PRESETS, getPreset, type PresetKey } from "@/lib/prompt-presets";
-import { compilePrompt, type PromptFields } from "@/lib/prompt-compiler";
+import { compilePrompt, type PromptFields, type PromptVariables } from "@/lib/prompt-compiler";
 
 type BotConfigData = {
   language?: string;
@@ -19,6 +19,7 @@ type BotConfigData = {
   background?: string;
   guardrails?: string;
   exampleDialogue?: string;
+  variables?: PromptVariables;
   knowledgeBaseId?: string;
   knowledgeBaseName?: string;
   knowledgeBaseStatus?: string;
@@ -34,8 +35,6 @@ const LANGUAGES = [
   { code: "es", label: "Spanish", previewText: "Hola, esta es una vista previa de esta voz." },
 ];
 
-const EMPTY_FIELDS: PromptFields = { goal: "", callFlow: "", background: "", guardrails: "", exampleDialogue: "" };
-
 export default function BotConfigsPage() {
   const toast = useToast();
   const [configs, setConfigs] = useState<BotConfig[] | null>(null);
@@ -47,12 +46,16 @@ export default function BotConfigsPage() {
   const [voiceId, setVoiceId] = useState("");
   const [voiceName, setVoiceName] = useState("");
   const [firstSentence, setFirstSentence] = useState("");
-  const [presetKey, setPresetKey] = useState<PresetKey>("sales");
-  const [fields, setFields] = useState<PromptFields>(getPreset("sales").fields);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
+  // Everything below belongs to the Agent Design Studio side panel — kept
+  // out of the basic form so day-to-day agent setup stays to four fields.
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [presetKey, setPresetKey] = useState<PresetKey>("sales");
+  const [fields, setFields] = useState<PromptFields>(getPreset("sales").fields);
+  const [variables, setVariables] = useState<PromptVariables>({});
   const [kbName, setKbName] = useState("");
   const [kbUrls, setKbUrls] = useState("");
   const [kb, setKb] = useState<{ id: string; name: string; status: string } | null>(null);
@@ -79,7 +82,9 @@ export default function BotConfigsPage() {
   }, [kb]);
 
   const currentLanguage = LANGUAGES.find((l) => l.code === language) ?? LANGUAGES[0];
-  const compiled = useMemo(() => compilePrompt(fields), [fields]);
+  const currentPreset = getPreset(presetKey);
+  const compiled = useMemo(() => compilePrompt(fields, variables), [fields, variables]);
+  const promptIncomplete = compiled.includes("{{");
 
   const filteredVoices = useMemo(() => {
     if (!voices) return [];
@@ -124,6 +129,7 @@ export default function BotConfigsPage() {
   function applyPreset(key: PresetKey) {
     setPresetKey(key);
     setFields(getPreset(key).fields);
+    setVariables({});
   }
 
   function resetForm() {
@@ -135,9 +141,11 @@ export default function BotConfigsPage() {
     setFirstSentence("");
     setPresetKey("sales");
     setFields(getPreset("sales").fields);
+    setVariables({});
     setKbName("");
     setKbUrls("");
     setKb(null);
+    setStudioOpen(false);
   }
 
   function editConfig(c: BotConfig) {
@@ -147,6 +155,7 @@ export default function BotConfigsPage() {
     setVoiceId(c.config.voice || "");
     setVoiceName(c.config.voiceName || "");
     setFirstSentence(c.config.firstSentence || "");
+    setVariables(c.config.variables || {});
     if (c.config.goal || c.config.callFlow || c.config.background || c.config.guardrails || c.config.exampleDialogue) {
       setPresetKey(c.config.presetType || "custom");
       setFields({
@@ -160,13 +169,9 @@ export default function BotConfigsPage() {
       // Legacy agent created before Prompt Studio -- preserve its working
       // freeform prompt rather than discarding it.
       setPresetKey("custom");
-      setFields({ ...EMPTY_FIELDS, background: c.config.task || "", guardrails: getPreset("custom").fields.guardrails });
+      setFields({ goal: "", callFlow: "", background: c.config.task || "", guardrails: getPreset("custom").fields.guardrails, exampleDialogue: "" });
     }
-    if (c.config.knowledgeBaseId) {
-      setKb({ id: c.config.knowledgeBaseId, name: c.config.knowledgeBaseName || "Knowledge base", status: c.config.knowledgeBaseStatus || "COMPLETED" });
-    } else {
-      setKb(null);
-    }
+    setKb(c.config.knowledgeBaseId ? { id: c.config.knowledgeBaseId, name: c.config.knowledgeBaseName || "Knowledge base", status: c.config.knowledgeBaseStatus || "COMPLETED" } : null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -198,7 +203,14 @@ export default function BotConfigsPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!voiceId) return toast("Pick a voice first", "error");
-    if (!fields.goal.trim()) return toast("Describe the agent's goal", "error");
+    if (!fields.goal.trim()) {
+      setStudioOpen(true);
+      return toast("Describe the agent's goal in the Design Studio", "error");
+    }
+    if (promptIncomplete) {
+      setStudioOpen(true);
+      return toast("Fill in every placeholder in the Design Studio before saving", "error");
+    }
     setSaving(true);
     try {
       const config = {
@@ -212,6 +224,7 @@ export default function BotConfigsPage() {
         background: fields.background,
         guardrails: fields.guardrails,
         exampleDialogue: fields.exampleDialogue,
+        variables,
         task: compiled,
         knowledgeBaseId: kb?.id,
         knowledgeBaseName: kb?.name,
@@ -235,33 +248,13 @@ export default function BotConfigsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Prompt Studio</h1>
-      <p className="text-sm text-text-faint">
-        Build Ivay voice agents from a structured, grounded prompt — pick a preset, fill in the specifics, and optionally attach a
-        knowledge base so the agent answers from real facts instead of guessing.
+      <h1 className="text-xl font-bold">Voice Agents</h1>
+      <p className="text-sm text-text-dim">
+        Ivay voice AI agents — one per language/script combination. Assign one to a campaign to power its calls.
       </p>
 
       <Card title={editingId ? `Editing "${name}"` : "New voice agent"}>
-        <form onSubmit={save} className="space-y-5">
-          <div>
-            <span className="mb-2 block text-sm font-medium text-text-dim">Preset</span>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              {PRESETS.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => applyPreset(p.key)}
-                  className={`rounded-lg border px-3 py-2.5 text-left text-xs transition-colors ${
-                    presetKey === p.key ? "border-primary bg-primary/10" : "border-border hover:border-border-hi hover:bg-card-hi"
-                  }`}
-                >
-                  <div className="font-semibold text-text">{p.label}</div>
-                  <div className="mt-0.5 text-text-faint">{p.description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
+        <form onSubmit={save} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Name">
               <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. German Outreach Agent" />
@@ -296,9 +289,9 @@ export default function BotConfigsPage() {
 
           <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
             {voices === null ? (
-              <p className="p-4 text-sm text-text-faint">Loading voices…</p>
+              <p className="p-4 text-sm text-text-dim">Loading voices…</p>
             ) : filteredVoices.length === 0 ? (
-              <p className="p-4 text-sm text-text-faint">No voices match.</p>
+              <p className="p-4 text-sm text-text-dim">No voices match.</p>
             ) : (
               <table className="w-full text-sm">
                 <tbody>
@@ -323,7 +316,7 @@ export default function BotConfigsPage() {
                         </button>
                       </td>
                       <td className="py-2 font-medium">{v.name}</td>
-                      <td className="py-2 pr-3 text-xs text-text-faint">{v.description || ""}</td>
+                      <td className="py-2 pr-3 text-xs text-text-dim">{v.description || ""}</td>
                       {voiceId === v.id && (
                         <td className="w-16 py-2 pr-3 text-right">
                           <Pill value="selected" />
@@ -345,63 +338,19 @@ export default function BotConfigsPage() {
             />
           </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Goal" hint="What this call is for and what success looks like">
-              <textarea className={`${inputClass} min-h-20`} value={fields.goal} onChange={(e) => setFields({ ...fields, goal: e.target.value })} required />
-            </Field>
-            <Field label="Call flow" hint="Numbered steps the agent should generally follow">
-              <textarea className={`${inputClass} min-h-20`} value={fields.callFlow} onChange={(e) => setFields({ ...fields, callFlow: e.target.value })} />
-            </Field>
-            <Field label="Background" hint="Facts about the business/offer the agent needs to speak accurately">
-              <textarea className={`${inputClass} min-h-20`} value={fields.background} onChange={(e) => setFields({ ...fields, background: e.target.value })} />
-            </Field>
-            <Field label="Guardrails" hint="Rules the agent must never break">
-              <textarea className={`${inputClass} min-h-20`} value={fields.guardrails} onChange={(e) => setFields({ ...fields, guardrails: e.target.value })} />
-            </Field>
-          </div>
-          <Field label="Example dialogue" hint="A short sample exchange showing the tone and how to handle a tricky moment">
-            <textarea className={`${inputClass} min-h-20`} value={fields.exampleDialogue} onChange={(e) => setFields({ ...fields, exampleDialogue: e.target.value })} />
-          </Field>
-
-          <Field label="Compiled prompt" hint="Exactly what the agent receives — read-only, built from the fields above">
-            <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-bg p-3 font-mono text-xs text-text-dim">
-              {compiled || "Fill in the fields above to see the compiled prompt."}
-            </pre>
-          </Field>
-
-          <div className="rounded-lg border border-border p-4">
-            <div className="mb-2 text-sm font-medium text-text-dim">Knowledge base (optional)</div>
-            <p className="mb-3 text-xs text-text-faint">
-              Give the agent real facts to draw on instead of guessing — paste a client&apos;s website page(s) and we&apos;ll scrape and attach
-              them. No extra cost: included in your normal per-minute call rate.
-            </p>
-            {kb ? (
-              <div className="flex items-center justify-between rounded-lg border border-border bg-bg px-3 py-2">
-                <div className="text-sm">
-                  <span className="font-medium text-text">{kb.name}</span>
-                  <span className="ml-2 text-xs text-text-faint">{kb.id}</span>
+          <div className="rounded-lg border border-border bg-bg p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-text">
+                  Prompt — {currentPreset.label} preset{kb && <span className="ml-2 text-xs font-normal text-text-dim">+ knowledge base</span>}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Pill value={kb.status.toLowerCase() === "completed" ? "ready" : kb.status.toLowerCase()} />
-                  <Button type="button" variant="ghost" onClick={removeKnowledgeBase}>
-                    Remove
-                  </Button>
-                </div>
+                <p className="mt-1 line-clamp-2 text-xs text-text-dim">{compiled || "Nothing configured yet."}</p>
+                {promptIncomplete && <p className="mt-1 text-xs font-medium text-warn">Some placeholders still need values.</p>}
               </div>
-            ) : (
-              <div className="space-y-2">
-                <input className={inputClass} value={kbName} onChange={(e) => setKbName(e.target.value)} placeholder="Knowledge base name (optional)" />
-                <textarea
-                  className={`${inputClass} min-h-16`}
-                  value={kbUrls}
-                  onChange={(e) => setKbUrls(e.target.value)}
-                  placeholder="https://client.com/pricing https://client.com/faq"
-                />
-                <Button type="button" variant="ghost" onClick={startKnowledgeBase} disabled={kbStarting}>
-                  {kbStarting ? "Starting…" : "Scrape & attach"}
-                </Button>
-              </div>
-            )}
+              <Button type="button" variant="ghost" onClick={() => setStudioOpen(true)} className="shrink-0">
+                Open Design Studio
+              </Button>
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -419,9 +368,9 @@ export default function BotConfigsPage() {
 
       <Card>
         {configs === null ? (
-          <p className="text-sm text-text-faint">Loading…</p>
+          <p className="text-sm text-text-dim">Loading…</p>
         ) : configs.length === 0 ? (
-          <p className="text-sm text-text-faint">No voice agents yet.</p>
+          <p className="text-sm text-text-dim">No voice agents yet.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -455,6 +404,131 @@ export default function BotConfigsPage() {
           </table>
         )}
       </Card>
+
+      {studioOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-[#0b0c1a]/50" onClick={() => setStudioOpen(false)} />
+          <div className="relative flex h-full w-full max-w-xl flex-col border-l border-border-hi bg-surface shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <div>
+                <h2 className="text-base font-bold text-text">Agent Design Studio</h2>
+                <p className="text-xs text-text-dim">Pick a preset, fill in the specifics, optionally ground it with a knowledge base.</p>
+              </div>
+              <Button type="button" variant="ghost" onClick={() => setStudioOpen(false)}>
+                Done
+              </Button>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              <div>
+                <span className="mb-2 block text-sm font-medium text-text">Preset</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {PRESETS.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => applyPreset(p.key)}
+                      className={`rounded-lg border px-3 py-2.5 text-left text-xs transition-colors ${
+                        presetKey === p.key ? "border-primary bg-primary/10" : "border-border hover:border-border-hi hover:bg-card-hi"
+                      }`}
+                    >
+                      <div className="font-semibold text-text">{p.label}</div>
+                      <div className="mt-0.5 text-text-dim">{p.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {currentPreset.variables.length > 0 && (
+                <div>
+                  <span className="mb-2 block text-sm font-medium text-text">Fill in the specifics</span>
+                  <div className="space-y-3 rounded-lg border border-border bg-bg p-3">
+                    {currentPreset.variables.map((v) => (
+                      <Field key={v.key} label={v.label}>
+                        <input
+                          className={inputClass}
+                          value={variables[v.key] || ""}
+                          onChange={(e) => setVariables({ ...variables, [v.key]: e.target.value })}
+                          placeholder={v.placeholder}
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-xs text-text-dim">These fill in the {"{{placeholders}}"} in the script below automatically.</p>
+                </div>
+              )}
+
+              <details className="rounded-lg border border-border">
+                <summary className="cursor-pointer select-none px-3 py-2.5 text-sm font-medium text-text">Advanced: edit the script directly</summary>
+                <div className="grid gap-4 border-t border-border p-3">
+                  <Field label="Goal" hint="What this call is for and what success looks like">
+                    <textarea className={`${inputClass} min-h-20`} value={fields.goal} onChange={(e) => setFields({ ...fields, goal: e.target.value })} required />
+                  </Field>
+                  <Field label="Call flow" hint="Numbered steps the agent should generally follow">
+                    <textarea className={`${inputClass} min-h-20`} value={fields.callFlow} onChange={(e) => setFields({ ...fields, callFlow: e.target.value })} />
+                  </Field>
+                  <Field label="Background" hint="Facts about the business/offer the agent needs to speak accurately">
+                    <textarea className={`${inputClass} min-h-20`} value={fields.background} onChange={(e) => setFields({ ...fields, background: e.target.value })} />
+                  </Field>
+                  <Field label="Guardrails" hint="Rules the agent must never break">
+                    <textarea className={`${inputClass} min-h-20`} value={fields.guardrails} onChange={(e) => setFields({ ...fields, guardrails: e.target.value })} />
+                  </Field>
+                  <Field label="Example dialogue" hint="A short sample exchange showing the tone and how to handle a tricky moment">
+                    <textarea className={`${inputClass} min-h-20`} value={fields.exampleDialogue} onChange={(e) => setFields({ ...fields, exampleDialogue: e.target.value })} />
+                  </Field>
+                </div>
+              </details>
+
+              <Field label="Compiled prompt" hint="Exactly what the agent receives — read-only, built from the fields above">
+                <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-bg p-3 font-mono text-xs text-text-dim">
+                  {compiled || "Fill in the fields above to see the compiled prompt."}
+                </pre>
+              </Field>
+
+              <div className="rounded-lg border border-border p-4">
+                <div className="mb-2 text-sm font-medium text-text">Knowledge base (optional)</div>
+                <p className="mb-3 text-xs text-text-dim">
+                  Give the agent real facts to draw on instead of guessing — paste a client&apos;s website page(s) and we&apos;ll scrape and
+                  attach them. No extra cost: included in your normal per-minute call rate.
+                </p>
+                {kb ? (
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-bg px-3 py-2">
+                    <div className="text-sm">
+                      <span className="font-medium text-text">{kb.name}</span>
+                      <span className="ml-2 text-xs text-text-dim">{kb.id}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Pill value={kb.status.toLowerCase() === "completed" ? "ready" : kb.status.toLowerCase()} />
+                      <Button type="button" variant="ghost" onClick={removeKnowledgeBase}>
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input className={inputClass} value={kbName} onChange={(e) => setKbName(e.target.value)} placeholder="Knowledge base name (optional)" />
+                    <textarea
+                      className={`${inputClass} min-h-16`}
+                      value={kbUrls}
+                      onChange={(e) => setKbUrls(e.target.value)}
+                      placeholder="https://client.com/pricing https://client.com/faq"
+                    />
+                    <Button type="button" variant="ghost" onClick={startKnowledgeBase} disabled={kbStarting}>
+                      {kbStarting ? "Starting…" : "Scrape & attach"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-border px-6 py-4">
+              <Button type="button" variant="success" className="w-full justify-center" onClick={() => setStudioOpen(false)}>
+                Apply to agent
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

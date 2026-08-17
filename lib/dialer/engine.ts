@@ -36,9 +36,20 @@ async function recordCallHistory(campaignId: string, leadId: string, outcome: "C
   await prisma.callHistory.create({ data: { campaignId, leadId, outcome, note } });
 }
 
-function webhookUrl() {
+export function webhookUrl() {
   const base = process.env.APP_URL || (process.env.COOLIFY_FQDN ? `https://${process.env.COOLIFY_FQDN}` : "http://localhost:3000");
   return `${base}/api/bland/webhook`;
+}
+
+/** Derives the placeCall() params a bot config's stored settings translate to
+ * — shared by the campaign dial loop and the ops-only single-number test call. */
+export function callParamsFromBotConfig(config: Record<string, unknown>) {
+  const task = (config.task as string) || (config.greeting as string) || "You are calling on behalf of Ivay. Introduce yourself briefly and ask how you can help.";
+  const voice = config.voice as string | undefined;
+  const language = config.language as string | undefined;
+  const firstSentence = config.firstSentence as string | undefined;
+  const knowledgeBaseId = config.knowledgeBaseId as string | undefined;
+  return { task, voice, language, firstSentence, knowledgeBaseIds: knowledgeBaseId ? [knowledgeBaseId] : undefined };
 }
 
 /** Places calls for a campaign's next pending leads, up to its maxConcurrent. */
@@ -53,12 +64,7 @@ export async function dialNext(campaignId: string) {
     return;
   }
 
-  const config = (campaign.botConfig.config as Record<string, unknown>) || {};
-  const task = (config.task as string) || (config.greeting as string) || "You are calling on behalf of Ivay. Introduce yourself briefly and ask how you can help.";
-  const voice = config.voice as string | undefined;
-  const language = config.language as string | undefined;
-  const firstSentence = config.firstSentence as string | undefined;
-  const knowledgeBaseId = config.knowledgeBaseId as string | undefined;
+  const { task, voice, language, firstSentence, knowledgeBaseIds } = callParamsFromBotConfig((campaign.botConfig.config as Record<string, unknown>) || {});
 
   let activeCount = await prisma.lead.count({ where: { campaignId, status: "DIALING" } });
 
@@ -77,7 +83,7 @@ export async function dialNext(campaignId: string) {
         voice,
         language,
         firstSentence,
-        knowledgeBaseIds: knowledgeBaseId ? [knowledgeBaseId] : undefined,
+        knowledgeBaseIds,
         webhookUrl: webhookUrl(),
         metadata: { leadId: lead.id, campaignId },
       });

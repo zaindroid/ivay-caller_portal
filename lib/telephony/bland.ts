@@ -54,7 +54,12 @@ export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult>
       language: input.language || undefined,
       first_sentence: input.firstSentence || undefined,
       knowledge_base_ids: input.knowledgeBaseIds?.length ? input.knowledgeBaseIds : undefined,
-      webhook: input.webhookUrl,
+      // Bland rejects non-https webhooks outright -- in local dev APP_URL is
+      // http://localhost, which can't be one anyway (Bland can't reach it),
+      // so omit it there rather than failing the call. Call status just
+      // won't auto-update in that case, same as it wouldn't for a call to a
+      // webhook Bland can't reach.
+      webhook: input.webhookUrl.startsWith("https://") ? input.webhookUrl : undefined,
       metadata: input.metadata,
       max_duration: 15,
     }),

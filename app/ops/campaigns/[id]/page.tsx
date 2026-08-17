@@ -2,7 +2,7 @@
 
 import { use, useCallback, useRef, useState } from "react";
 import Link from "next/link";
-import { Card, StatTile, Pill, Button } from "@/components/ui";
+import { Card, StatTile, Pill, Button, Field, inputClass } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { usePolling } from "@/hooks/use-polling";
 
@@ -30,6 +30,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testCalling, setTestCalling] = useState(false);
 
   const load = useCallback(async () => {
     const [detailRes, leadsRes] = await Promise.all([
@@ -61,6 +63,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       load();
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function testCall(e: React.FormEvent) {
+    e.preventDefault();
+    if (!testPhone.trim()) return toast("Enter a phone number", "error");
+    setTestCalling(true);
+    try {
+      const res = await fetch(`/api/ops/campaigns/${id}/test-call`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: testPhone.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) return toast(data.error, "error");
+      toast(`Calling ${testPhone.trim()} now — this is a one-off test, not added to leads`);
+      setTestPhone("");
+    } finally {
+      setTestCalling(false);
     }
   }
 
@@ -161,14 +182,31 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         </Card>
       </div>
 
-      <Card title="Upload leads">
-        <div className="flex flex-wrap items-center gap-3">
-          <input ref={fileRef} type="file" accept=".csv" className="text-sm text-text-dim" />
-          <Button variant="ghost" onClick={uploadCsv} disabled={uploading}>
-            {uploading ? "Uploading…" : "Upload CSV"}
-          </Button>
-        </div>
-      </Card>
+      <div className="grid grid-cols-2 gap-6">
+        <Card title="Test call">
+          <p className="mb-3 text-xs text-text-dim">
+            Call any real number right now using this agent — a one-off call, not a lead. It won&apos;t appear below or count toward campaign
+            stats.
+          </p>
+          <form onSubmit={testCall} className="space-y-3">
+            <Field label="Phone number">
+              <input className={inputClass} value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+1 555 123 4567" required />
+            </Field>
+            <Button type="submit" variant="ghost" disabled={testCalling}>
+              {testCalling ? "Calling…" : "Call this number"}
+            </Button>
+          </form>
+        </Card>
+
+        <Card title="Upload leads (CSV)">
+          <div className="flex flex-wrap items-center gap-3">
+            <input ref={fileRef} type="file" accept=".csv" className="text-sm text-text-dim" />
+            <Button variant="ghost" onClick={uploadCsv} disabled={uploading}>
+              {uploading ? "Uploading…" : "Upload CSV"}
+            </Button>
+          </div>
+        </Card>
+      </div>
 
       <Card title={`Leads (${leadTotal})`}>
         {leads.length === 0 ? (
