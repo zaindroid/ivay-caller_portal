@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Field, inputClass, Button } from "@/components/ui";
+import { AudioPulse } from "@/components/audio-pulse";
 
 function LoginForm() {
   const router = useRouter();
@@ -37,18 +38,26 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(ellipse_at_50%_0%,rgba(109,94,248,0.18),var(--bg)_70%)] px-4">
-      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl border border-border bg-surface p-10 shadow-2xl">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div className="ambient-glow absolute -top-1/4 left-1/2 h-[42rem] w-[42rem] -translate-x-1/2 rounded-full bg-primary/20 blur-[120px]" />
+        <div className="ambient-glow absolute bottom-[-20%] right-[-10%] h-[30rem] w-[30rem] rounded-full bg-info/15 blur-[110px]" style={{ animationDelay: "-7s" }} />
+      </div>
+
+      <form onSubmit={onSubmit} className="relative w-full max-w-sm rounded-2xl border border-border bg-surface/95 p-10 shadow-[0_0_0_1px_rgba(179,79,232,0.06),0_24px_60px_-15px_rgba(0,0,0,0.6)] backdrop-blur">
         <div className="mb-8 text-center">
           <Image
             src="/ivay-logo-full.png"
             alt="Ivay"
             width={820}
             height={865}
-            className="mx-auto mb-3 h-24 w-auto"
+            className="mx-auto mb-4 h-20 w-auto"
             priority
           />
-          <p className="text-sm text-text-dim">Caller Portal</p>
+          <div className="flex items-center justify-center gap-2 text-text-dim">
+            <AudioPulse className="text-primary-hi" />
+            <p className="text-sm">Caller Portal</p>
+          </div>
         </div>
 
         {error && (

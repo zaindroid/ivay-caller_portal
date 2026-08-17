@@ -1,38 +1,47 @@
 @import "tailwindcss";
 
+/* Palette grounded in the ivay mark: deep navy ground, vivid orchid signature
+   (lifted from the logo's mauve bubble and pushed to full saturation),
+   periwinkle for "settled/complete" states instead of the generic
+   violet+cyan AI-SaaS pairing. Neutrals carry a faint violet tint rather
+   than flat gray so the whole surface reads as one family. */
 :root {
-  --bg: #0a0e1a;
-  --surface: #10182b;
-  --card: #141d34;
-  --border: #202b47;
-  --border-hi: #2c3a5e;
-  --primary: #6d5ef8;
-  --primary-hi: #8b7cff;
-  --accent: #22d3c5;
-  --success: #22c77a;
-  --warn: #f5a524;
+  --bg: #0a0c18;
+  --surface: #10132a;
+  --card: #151833;
+  --card-hi: #1b1f45;
+  --border: #262b4d;
+  --border-hi: #383f6e;
+
+  --primary: #b34fe8;
+  --primary-hi: #cd7af2;
+  --info: #7c93f7;
+  --success: #2ed991;
+  --warn: #f5a623;
   --danger: #f2495c;
-  --text: #eef1fb;
-  --text-dim: #9aa4c4;
-  --text-faint: #5b6483;
+
+  --text: #f2f0fa;
+  --text-dim: #a29cc2;
+  --text-faint: #625c87;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-card: var(--card);
+  --color-card-hi: var(--card-hi);
   --color-border: var(--border);
   --color-border-hi: var(--border-hi);
   --color-primary: var(--primary);
   --color-primary-hi: var(--primary-hi);
-  --color-accent: var(--accent);
+  --color-info: var(--info);
   --color-success: var(--success);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-text: var(--text);
   --color-text-dim: var(--text-dim);
   --color-text-faint: var(--text-faint);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-display);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -43,22 +52,47 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-display), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "ss01" on, "ss02" on;
 }
 
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(0.8);
-  }
+:focus-visible {
+  outline: 2px solid var(--primary-hi);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
-.pulse {
-  animation: pulse-dot 1.5s infinite;
+
+/* Signature element: a small audio-equalizer pulse used anywhere something
+   is live -- an active campaign, a connected call, a live status dot. */
+@keyframes bar-bounce {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.audio-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 14px;
+}
+.audio-pulse span {
+  display: block;
+  width: 2.5px;
+  height: 100%;
+  border-radius: 1px;
+  background: currentColor;
+  animation: bar-bounce 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+.audio-pulse span:nth-child(1) { animation-delay: -0.6s; }
+.audio-pulse span:nth-child(2) { animation-delay: -0.3s; }
+.audio-pulse span:nth-child(3) { animation-delay: -0.9s; }
+.audio-pulse span:nth-child(4) { animation-delay: -0.15s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-pulse span {
+    animation: none;
+    transform: scaleY(0.7);
+  }
 }
 
 @keyframes toast-in {
@@ -73,4 +107,15 @@ body {
 }
 .toast-in {
   animation: toast-in 0.2s ease;
+}
+
+@keyframes ambient-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-2%, 1.5%) scale(1.04); }
+}
+.ambient-glow {
+  animation: ambient-drift 14s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-glow { animation: none; }
 }
