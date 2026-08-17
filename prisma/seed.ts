@@ -36,7 +36,12 @@ async function main() {
     },
   });
 
-  const number = await prisma.phoneNumber.upsert({
+  // Kept as a spare demo record for the Numbers page -- not assigned to
+  // either campaign below. Both campaigns place calls through the telephony
+  // backend's own default outbound number now (see lib/telephony/bland.ts);
+  // this Twilio number turned out to be a trial account, which forces a
+  // mandatory disclaimer onto every call and isn't fixable in code.
+  await prisma.phoneNumber.upsert({
     where: { number: "+15005550006" },
     update: {},
     create: { number: "+15005550006", region: "US-East", trunkName: "dev-trunk", accountId: account.id },
@@ -51,12 +56,18 @@ async function main() {
       provider: "IVAY_VOICE",
       config: {
         language: "en-US",
-        voice: "June",
-        task: "You are calling on behalf of Ivay, a voice AI company. Introduce yourself briefly, explain this is a quick outreach call, and ask if they have a moment to chat.",
+        voice: "Karen",
+        voiceName: "Karen",
+        firstSentence: "Hi, this is Ivay calling — do you have a quick moment?",
+        task: "You are calling on behalf of Ivay, a voice AI company, to introduce our services and see if they would be a good fit for the person you are calling. Be warm, brief, and conversational. Ask if they have a moment to chat, and if so, briefly explain what Ivay does and ask a qualifying question about their needs.",
       },
     },
   });
 
+  // Voice is a clone of a real German speaker (ivay's own sample), built via
+  // Bland's /v1/voices/clone -- this id is specific to ivay's Bland account
+  // voice library, not a generic catalog entry. "de" (not "de-DE") is the
+  // language code Bland's API actually accepts for German.
   const deBotConfig = await prisma.botConfig.upsert({
     where: { id: "demo-bot-config-de" },
     update: {},
@@ -65,9 +76,11 @@ async function main() {
       name: "German Outreach Agent",
       provider: "IVAY_VOICE",
       config: {
-        language: "de-DE",
-        voice: "Florian",
-        task: "Du rufst im Auftrag von Ivay an, einem Voice-AI-Unternehmen. Stelle dich kurz vor und frage, ob gerade Zeit für ein kurzes Gespräch ist.",
+        language: "de",
+        voice: "6a7ae0e5-bb97-423f-9b3c-43dae315a7be",
+        voiceName: "Stefanie (cloned)",
+        firstSentence: "Hallo... hier ist Stefanie von Ivay. Haben Sie kurz... einen Moment Zeit?",
+        task: "Du rufst im Auftrag von Ivay an, einem Voice-AI-Unternehmen, um unsere Dienstleistungen vorzustellen. Sprich langsam, ruhig und in einem natuerlichen Gespraechston -- mit kurzen Pausen zwischen den Gedanken, so wie ein Mensch am Telefon sprechen wuerde, nicht hastig oder abgehackt. Verwende kurze Saetze mit natuerlichen Sprechpausen. Frage, ob gerade Zeit fuer ein kurzes Gespraech ist, und erklaere dann in Ruhe, was Ivay macht.",
       },
     },
   });
@@ -80,14 +93,10 @@ async function main() {
       accountId: account.id,
       name: "Spring Outreach (English)",
       maxConcurrent: 3,
-      phoneNumberId: number.id,
       botConfigId: enBotConfig.id,
     },
   });
 
-  // No phone number assigned yet — pending a real number/trunk for the
-  // German leg (self-serve German DIDs require local business KYC with
-  // every provider; plan is to use a non-German number here for now).
   const deCampaign = await prisma.campaign.upsert({
     where: { id: "demo-campaign-de" },
     update: {},
