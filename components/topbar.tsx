@@ -17,7 +17,7 @@ export function Topbar({ links, userLabel }: { links: NavLink[]; userLabel: stri
   }
 
   return (
-    <div className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur-sm">
+    <div className="sticky top-0 z-40 border-b border-border bg-surface/95 shadow-[0_1px_2px_rgba(20,22,43,0.04)] backdrop-blur-sm">
       <div className="flex h-16 items-center gap-6 px-6">
         <Link href="/" className="flex items-center gap-2.5">
           <Image src="/ivay-icon.png" alt="" width={28} height={24} priority />

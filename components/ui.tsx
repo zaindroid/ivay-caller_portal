@@ -11,7 +11,7 @@ export function Card({
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-border bg-card p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.02)_inset] ${className}`}>
+    <div className={`rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(20,22,43,0.04),0_10px_28px_-14px_rgba(20,22,43,0.14)] ${className}`}>
       {title && <div className="mb-4 text-xs font-bold uppercase tracking-wider text-text-faint">{title}</div>}
       {children}
     </div>
@@ -80,10 +80,10 @@ type ButtonVariant = "primary" | "success" | "warn" | "danger" | "ghost";
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
   primary: "bg-primary text-white hover:bg-primary-hi",
-  success: "bg-success text-[#04150d] hover:brightness-110",
-  warn: "bg-warn text-[#1a1200] hover:brightness-110",
+  success: "bg-success text-white hover:brightness-110",
+  warn: "bg-warn text-white hover:brightness-110",
   danger: "bg-danger text-white hover:brightness-110",
-  ghost: "border border-border text-text-dim hover:border-border-hi hover:text-text",
+  ghost: "border border-border text-text-dim hover:border-border-hi hover:text-text hover:bg-card-hi",
 };
 
 export function Button({

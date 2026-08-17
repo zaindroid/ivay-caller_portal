@@ -1,28 +1,26 @@
 @import "tailwindcss";
 
-/* Palette grounded in the ivay mark: deep navy ground, vivid orchid signature
-   (lifted from the logo's mauve bubble and pushed to full saturation),
-   periwinkle for "settled/complete" states instead of the generic
-   violet+cyan AI-SaaS pairing. Neutrals carry a faint violet tint rather
-   than flat gray so the whole surface reads as one family. */
+/* Clean light theme. Accent is lifted from ivay's own logo (the mauve
+   bubble) rather than a generic AI-SaaS purple, text carries a faint
+   navy tint instead of flat gray so the page reads as one family. */
 :root {
-  --bg: #0a0c18;
-  --surface: #10132a;
-  --card: #151833;
-  --card-hi: #1b1f45;
-  --border: #262b4d;
-  --border-hi: #383f6e;
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --card-hi: #f0f1f8;
+  --border: #e3e5f0;
+  --border-hi: #ccd0e6;
 
-  --primary: #b34fe8;
-  --primary-hi: #cd7af2;
-  --info: #7c93f7;
-  --success: #2ed991;
-  --warn: #f5a623;
-  --danger: #f2495c;
+  --primary: #9b3fd1;
+  --primary-hi: #7f2fb0;
+  --info: #4c5fd6;
+  --success: #16a366;
+  --warn: #c2760a;
+  --danger: #d93a4a;
 
-  --text: #f2f0fa;
-  --text-dim: #a29cc2;
-  --text-faint: #625c87;
+  --text: #14162b;
+  --text-dim: #5a5e7d;
+  --text-faint: #9497af;
 }
 
 @theme inline {
@@ -46,7 +44,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
@@ -57,7 +55,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--primary-hi);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: 4px;
 }

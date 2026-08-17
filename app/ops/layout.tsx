@@ -6,7 +6,7 @@ const LINKS = [
   { href: "/ops", label: "Dashboard" },
   { href: "/ops/accounts", label: "Accounts" },
   { href: "/ops/numbers", label: "Numbers" },
-  { href: "/ops/bot-configs", label: "Bot Configs" },
+  { href: "/ops/bot-configs", label: "Voice Agents" },
   { href: "/ops/agents", label: "Agents" },
   { href: "/ops/logs", label: "Logs" },
 ];

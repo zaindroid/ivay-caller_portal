@@ -40,11 +40,11 @@ function LoginForm() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div className="ambient-glow absolute -top-1/4 left-1/2 h-[42rem] w-[42rem] -translate-x-1/2 rounded-full bg-primary/20 blur-[120px]" />
-        <div className="ambient-glow absolute bottom-[-20%] right-[-10%] h-[30rem] w-[30rem] rounded-full bg-info/15 blur-[110px]" style={{ animationDelay: "-7s" }} />
+        <div className="ambient-glow absolute -top-1/4 left-1/2 h-[42rem] w-[42rem] -translate-x-1/2 rounded-full bg-primary/12 blur-[120px]" />
+        <div className="ambient-glow absolute bottom-[-20%] right-[-10%] h-[30rem] w-[30rem] rounded-full bg-info/10 blur-[110px]" style={{ animationDelay: "-7s" }} />
       </div>
 
-      <form onSubmit={onSubmit} className="relative w-full max-w-sm rounded-2xl border border-border bg-surface/95 p-10 shadow-[0_0_0_1px_rgba(179,79,232,0.06),0_24px_60px_-15px_rgba(0,0,0,0.6)] backdrop-blur">
+      <form onSubmit={onSubmit} className="relative w-full max-w-sm rounded-2xl border border-border bg-surface/95 p-10 shadow-[0_1px_2px_rgba(20,22,43,0.04),0_30px_60px_-20px_rgba(20,22,43,0.25)] backdrop-blur">
         <div className="mb-8 text-center">
           <Image
             src="/ivay-logo-full.png"
