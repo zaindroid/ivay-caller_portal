@@ -78,7 +78,12 @@ export type Voice = {
   name: string;
   description: string | null;
   tags: string[];
+  service: string;
 };
+
+// /v2/tts (the preview endpoint) only supports these newer voice models --
+// LEGACY and plain BTTS voices work for actual calls but 400 on preview.
+const PREVIEWABLE_SERVICES = new Set(["BTTS_V2", "BTTS_V3"]);
 
 export async function listVoices(): Promise<Voice[]> {
   const apiKey = requireEnv("BLAND_API_KEY");
@@ -87,12 +92,15 @@ export async function listVoices(): Promise<Voice[]> {
   });
   if (!res.ok) throw new Error(`Failed to list voices (${res.status})`);
   const data = await res.json();
-  return (data.voices || []).map((v: { id: string; name: string; description: string | null; tags?: string[] }) => ({
-    id: v.id,
-    name: v.name.trim(),
-    description: v.description,
-    tags: v.tags || [],
-  }));
+  return (data.voices || [])
+    .filter((v: { service: string }) => PREVIEWABLE_SERVICES.has(v.service))
+    .map((v: { id: string; name: string; description: string | null; tags?: string[]; service: string }) => ({
+      id: v.id,
+      name: v.name.trim(),
+      description: v.description,
+      tags: v.tags || [],
+      service: v.service,
+    }));
 }
 
 function wrapPcmAsWav(pcm: Buffer, sampleRate: number, channels = 1, bitsPerSample = 16): Buffer {
