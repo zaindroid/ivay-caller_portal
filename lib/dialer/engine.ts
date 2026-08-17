@@ -58,6 +58,7 @@ export async function dialNext(campaignId: string) {
   const voice = config.voice as string | undefined;
   const language = config.language as string | undefined;
   const firstSentence = config.firstSentence as string | undefined;
+  const knowledgeBaseId = config.knowledgeBaseId as string | undefined;
 
   let activeCount = await prisma.lead.count({ where: { campaignId, status: "DIALING" } });
 
@@ -76,6 +77,7 @@ export async function dialNext(campaignId: string) {
         voice,
         language,
         firstSentence,
+        knowledgeBaseIds: knowledgeBaseId ? [knowledgeBaseId] : undefined,
         webhookUrl: webhookUrl(),
         metadata: { leadId: lead.id, campaignId },
       });

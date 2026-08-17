@@ -23,6 +23,8 @@ export type PlaceCallInput = {
   voice?: string;
   language?: string;
   firstSentence?: string;
+  /** Knowledge base ids the agent can draw on mid-call instead of guessing. */
+  knowledgeBaseIds?: string[];
   webhookUrl: string;
   metadata: Record<string, string>;
 };
@@ -51,6 +53,7 @@ export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult>
       voice: input.voice || undefined,
       language: input.language || undefined,
       first_sentence: input.firstSentence || undefined,
+      knowledge_base_ids: input.knowledgeBaseIds?.length ? input.knowledgeBaseIds : undefined,
       webhook: input.webhookUrl,
       metadata: input.metadata,
       max_duration: 15,
@@ -135,4 +138,40 @@ export async function previewVoice(voiceId: string, text: string): Promise<Buffe
   const sampleRate = parseInt(res.headers.get("x-sample-rate") || "48000", 10);
   const pcm = Buffer.from(await res.arrayBuffer());
   return wrapPcmAsWav(pcm, sampleRate);
+}
+
+// ── Knowledge base (grounds an agent in a client's real content instead of
+// letting it invent answers) ─────────────────────────────────────────────
+
+export type KnowledgeBaseStatus = "PROCESSING" | "COMPLETED" | "FAILED" | "DELETED";
+
+export type KnowledgeBase = {
+  id: string;
+  name: string;
+  status: KnowledgeBaseStatus;
+};
+
+/** Scrapes a client's website (same-domain linked pages included, up to
+ * 100 URLs) and vectorizes it into a knowledge base the agent can draw on
+ * mid-call via `tools`. Processing is async -- poll getKnowledgeBase(). */
+export async function learnFromWebsite(name: string, urls: string[], description?: string): Promise<KnowledgeBase> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v1/knowledge/learn`, {
+    method: "POST",
+    headers: { authorization: apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "web", name, urls, description }),
+  });
+  const data = await res.json();
+  if (!res.ok || data?.errors) throw new Error(data?.errors?.[0]?.message || data?.data?.message || `Knowledge base creation failed (${res.status})`);
+  return { id: data.data.knowledge_base_id, name, status: "PROCESSING" };
+}
+
+export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v1/knowledge/${id}`, {
+    headers: { authorization: apiKey },
+  });
+  const data = await res.json();
+  if (!res.ok || data?.errors) throw new Error(data?.errors?.[0]?.message || `Failed to fetch knowledge base (${res.status})`);
+  return { id, name: data.data.name, status: data.data.status };
 }

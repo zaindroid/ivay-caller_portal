@@ -146,8 +146,10 @@ model PhoneNumber {
   @@index([accountId])
 }
 
-// Ops-managed bot configuration, keyed per campaign. `config` shape depends
-// on `provider` — see lib/bot-providers for the interface this backs.
+// Ops-managed bot configuration, keyed per campaign. `config` holds the
+// structured Prompt Studio fields (identity/objective/guidelines/etc, see
+// lib/prompt-compiler.ts) plus the compiled `task` string actually sent to
+// the telephony backend, along with voice/language/firstSentence.
 model BotConfig {
   id       String      @id @default(cuid())
   provider BotProvider
