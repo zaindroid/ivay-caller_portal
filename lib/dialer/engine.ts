@@ -81,12 +81,12 @@ export async function dialNext(campaignId: string) {
       });
       await prisma.lead.update({ where: { id: lead.id }, data: { status: "DIALING", externalCallId: callId } });
       addLog("info", `Dialing ${lead.name} at ${lead.phone} (call ${callId})`);
+      activeCount++; // only a real in-flight call consumes a concurrency slot
     } catch (e) {
       await markLead(lead.id, "FAILED", (e as Error).message);
       await recordCallHistory(campaignId, lead.id, "FAILED", (e as Error).message);
       addLog("error", `Call failed for ${lead.phone}: ${(e as Error).message}`);
     }
-    activeCount++;
   }
 
   const remaining = await prisma.lead.count({ where: { campaignId, status: { in: ["PENDING", "DIALING"] } } });

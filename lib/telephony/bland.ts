@@ -72,3 +72,59 @@ export type BlandWebhookPayload = {
   completed?: boolean;
   metadata?: Record<string, string> | null;
 };
+
+export type Voice = {
+  id: string;
+  name: string;
+  description: string | null;
+  tags: string[];
+};
+
+export async function listVoices(): Promise<Voice[]> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v1/voices`, {
+    headers: { authorization: apiKey },
+  });
+  if (!res.ok) throw new Error(`Failed to list voices (${res.status})`);
+  const data = await res.json();
+  return (data.voices || []).map((v: { id: string; name: string; description: string | null; tags?: string[] }) => ({
+    id: v.id,
+    name: v.name.trim(),
+    description: v.description,
+    tags: v.tags || [],
+  }));
+}
+
+function wrapPcmAsWav(pcm: Buffer, sampleRate: number, channels = 1, bitsPerSample = 16): Buffer {
+  const blockAlign = channels * (bitsPerSample / 8);
+  const byteRate = sampleRate * blockAlign;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+/** Generates a short WAV preview clip of a voice speaking `text`. */
+export async function previewVoice(voiceId: string, text: string): Promise<Buffer> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v2/tts`, {
+    method: "POST",
+    headers: { authorization: apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ text, voice: voiceId }),
+  });
+  if (!res.ok) throw new Error(`Voice preview failed (${res.status})`);
+  const sampleRate = parseInt(res.headers.get("x-sample-rate") || "48000", 10);
+  const pcm = Buffer.from(await res.arrayBuffer());
+  return wrapPcmAsWav(pcm, sampleRate);
+}
