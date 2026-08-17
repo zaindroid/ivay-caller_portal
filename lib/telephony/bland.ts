@@ -171,6 +171,30 @@ export async function learnFromWebsite(name: string, urls: string[], description
   return { id: data.data.knowledge_base_id, name, status: "PROCESSING" };
 }
 
+// ── Post-call analysis (used to check whether a caller agreed to a next
+// step and to pull their confirmed contact details, so a follow-up email
+// can be sent without asking the agent to "send" anything mid-call) ───────
+
+export type AnalyzeAnswer = string | number | boolean | null;
+
+/** Runs Bland's post-call AI analysis against the transcript. Costs a small
+ * per-call credit fee on top of the call's own per-minute rate (a fraction
+ * of a cent per Bland's docs) -- only called for calls that actually
+ * completed, never for failed/no-answer calls. */
+export async function analyzeCall(callId: string, goal: string, questions: [string, string][]): Promise<AnalyzeAnswer[]> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v1/calls/${callId}/analyze`, {
+    method: "POST",
+    headers: { authorization: apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ goal, questions }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.status !== "success") {
+    throw new Error(data.message || `Call analysis failed (${res.status})`);
+  }
+  return data.answers;
+}
+
 export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {
   const apiKey = requireEnv("BLAND_API_KEY");
   const res = await fetch(`${BLAND_API_BASE}/v1/knowledge/${id}`, {

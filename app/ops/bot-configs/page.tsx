@@ -23,6 +23,7 @@ type BotConfigData = {
   knowledgeBaseId?: string;
   knowledgeBaseName?: string;
   knowledgeBaseStatus?: string;
+  schedulingLink?: string;
 };
 type BotConfig = { id: string; name: string; config: BotConfigData };
 type Voice = { id: string; name: string; description: string | null; tags: string[] };
@@ -60,6 +61,7 @@ export default function BotConfigsPage() {
   const [kbUrls, setKbUrls] = useState("");
   const [kb, setKb] = useState<{ id: string; name: string; status: string } | null>(null);
   const [kbStarting, setKbStarting] = useState(false);
+  const [schedulingLink, setSchedulingLink] = useState("");
 
   const load = useCallback(async () => {
     const [botRes, voiceRes] = await Promise.all([fetch("/api/ops/bot-configs"), fetch("/api/ops/voices")]);
@@ -145,6 +147,7 @@ export default function BotConfigsPage() {
     setKbName("");
     setKbUrls("");
     setKb(null);
+    setSchedulingLink("");
     setStudioOpen(false);
   }
 
@@ -172,6 +175,7 @@ export default function BotConfigsPage() {
       setFields({ goal: "", callFlow: "", background: c.config.task || "", guardrails: getPreset("custom").fields.guardrails, exampleDialogue: "" });
     }
     setKb(c.config.knowledgeBaseId ? { id: c.config.knowledgeBaseId, name: c.config.knowledgeBaseName || "Knowledge base", status: c.config.knowledgeBaseStatus || "COMPLETED" } : null);
+    setSchedulingLink(c.config.schedulingLink || "");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -229,6 +233,7 @@ export default function BotConfigsPage() {
         knowledgeBaseId: kb?.id,
         knowledgeBaseName: kb?.name,
         knowledgeBaseStatus: kb?.status,
+        schedulingLink: schedulingLink.trim() || undefined,
       };
 
       const res = await fetch(editingId ? `/api/ops/bot-configs/${editingId}` : "/api/ops/bot-configs", {
@@ -380,6 +385,7 @@ export default function BotConfigsPage() {
                 <th className="py-2">Language</th>
                 <th className="py-2">Voice</th>
                 <th className="py-2">Knowledge base</th>
+                <th className="py-2">Scheduling</th>
                 <th className="py-2"></th>
               </tr>
             </thead>
@@ -393,6 +399,7 @@ export default function BotConfigsPage() {
                   </td>
                   <td className="py-2 align-top text-text-dim">{c.config.voiceName || "—"}</td>
                   <td className="py-2 align-top text-text-dim">{c.config.knowledgeBaseName || "—"}</td>
+                  <td className="py-2 align-top text-text-dim">{c.config.schedulingLink ? "On" : "—"}</td>
                   <td className="py-2 align-top text-right">
                     <Button type="button" variant="ghost" onClick={() => editConfig(c)}>
                       Edit
@@ -518,6 +525,20 @@ export default function BotConfigsPage() {
                     </Button>
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-lg border border-border p-4">
+                <div className="mb-2 text-sm font-medium text-text">Scheduling link (optional)</div>
+                <p className="mb-3 text-xs text-text-dim">
+                  Paste your Cal.com or Calendly booking link. When a call ends with the caller agreeing to a next step and a confirmed
+                  email, we&apos;ll automatically email them this link — no manual follow-up needed.
+                </p>
+                <input
+                  className={inputClass}
+                  value={schedulingLink}
+                  onChange={(e) => setSchedulingLink(e.target.value)}
+                  placeholder="https://cal.com/yourname/15min"
+                />
               </div>
             </div>
 

@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
 import { ami, isAmiConnected } from "./ami";
 import { addLog } from "./logs";
-import { placeCall, type BlandWebhookPayload } from "@/lib/telephony/bland";
+import { placeCall, analyzeCall, type BlandWebhookPayload } from "@/lib/telephony/bland";
+import { sendSchedulingEmail } from "@/lib/email";
 
 /**
  * Multi-campaign outbound dialing engine. Campaign calls are placed through
@@ -104,27 +105,64 @@ export async function dialNext(campaignId: string) {
   }
 }
 
+/** Runs post-call analysis and emails a scheduling link if the caller
+ * agreed to a next step and gave a confirmed email -- covers both real
+ * leads and one-off test calls, since a campaign's botConfig is the same
+ * either way. Failures here are logged, never thrown -- a broken follow-up
+ * email should never affect call/lead tracking. */
+async function followUpIfMeetingBooked(callId: string, campaignId: string) {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: campaignId }, include: { botConfig: true } });
+    const schedulingLink = (campaign?.botConfig?.config as Record<string, unknown> | undefined)?.schedulingLink as string | undefined;
+    if (!schedulingLink) return;
+
+    const [meetingConfirmed, email, name] = await analyzeCall(
+      callId,
+      "Determine whether the caller agreed to a next step (a demo, trial, or follow-up call) and collect their confirmed contact details.",
+      [
+        ["Did the caller clearly agree to a next step like a demo, trial, or follow-up call?", "boolean"],
+        ["What is the caller's confirmed email address? Only answer if the agent read it back and the caller confirmed it -- otherwise leave blank.", "string"],
+        ["What is the caller's name, if given?", "string"],
+      ]
+    );
+
+    if (!meetingConfirmed || typeof email !== "string" || !email.includes("@")) return;
+
+    await sendSchedulingEmail({ to: email, name: typeof name === "string" && name.trim() ? name : undefined, schedulingLink });
+    addLog("info", `Sent scheduling email to ${email} for campaign ${campaignId}`);
+  } catch (e) {
+    addLog("error", `Follow-up email failed for call ${callId}: ${(e as Error).message}`);
+  }
+}
+
 /** Called by /api/bland/webhook when a call finishes. */
 export async function handleCallWebhook(payload: BlandWebhookPayload) {
+  const campaignId = payload.metadata?.campaignId;
   const leadId = payload.metadata?.leadId;
+  const failed = Boolean(payload.status && /fail|no.?answer|busy|error/i.test(payload.status));
+
   const lead = leadId
     ? await prisma.lead.findUnique({ where: { id: leadId } })
-    : await prisma.lead.findFirst({ where: { externalCallId: payload.call_id } });
-  if (!lead) {
+    : campaignId
+      ? await prisma.lead.findFirst({ where: { externalCallId: payload.call_id } })
+      : null;
+
+  if (lead) {
+    if (lead.status !== "DIALING") return; // already handled (duplicate webhook delivery)
+    const outcome = failed ? "FAILED" : "COMPLETED";
+    const note = failed ? payload.status : undefined;
+    await markLead(lead.id, outcome, note);
+    await recordCallHistory(lead.campaignId, lead.id, outcome, note);
+    addLog("info", `Call ${outcome === "COMPLETED" ? "completed" : "failed"} for ${lead.phone}`);
+    void dialNext(lead.campaignId);
+  } else if (!campaignId) {
     addLog("warn", `Bland webhook for unknown call ${payload.call_id}`);
     return;
   }
-  if (lead.status !== "DIALING") return; // already handled (duplicate webhook delivery)
 
-  const failed = Boolean(payload.status && /fail|no.?answer|busy|error/i.test(payload.status));
-  const outcome = failed ? "FAILED" : "COMPLETED";
-  const note = failed ? payload.status : undefined;
-
-  await markLead(lead.id, outcome, note);
-  await recordCallHistory(lead.campaignId, lead.id, outcome, note);
-  addLog("info", `Call ${outcome === "COMPLETED" ? "completed" : "failed"} for ${lead.phone}`);
-
-  void dialNext(lead.campaignId);
+  if (!failed && campaignId) {
+    void followUpIfMeetingBooked(payload.call_id, campaignId);
+  }
 }
 
 export async function startCampaign(campaignId: string) {
