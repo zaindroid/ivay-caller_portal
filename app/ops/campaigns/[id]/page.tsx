@@ -6,7 +6,7 @@ import { Card, StatTile, Pill, Button, Field, inputClass } from "@/components/ui
 import { useToast } from "@/components/toast";
 import { usePolling } from "@/hooks/use-polling";
 
-type Lead = { id: string; name: string; phone: string; status: string; note: string | null };
+type Lead = { id: string; name: string; phone: string; status: string; note: string | null; background: string | null };
 type CampaignDetail = {
   id: string;
   name: string;
@@ -32,6 +32,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [busy, setBusy] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [testCalling, setTestCalling] = useState(false);
+  const [testContactName, setTestContactName] = useState("");
+  const [testBackground, setTestBackground] = useState("");
+  const [testProfileUrl, setTestProfileUrl] = useState("");
 
   const load = useCallback(async () => {
     const [detailRes, leadsRes] = await Promise.all([
@@ -74,12 +77,24 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/ops/campaigns/${id}/test-call`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: testPhone.trim() }),
+        body: JSON.stringify({
+          phone: testPhone.trim(),
+          contactName: testContactName.trim() || undefined,
+          background: testBackground.trim() || undefined,
+          profileUrl: testProfileUrl.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) return toast(data.error, "error");
-      toast(`Calling ${testPhone.trim()} now — this is a one-off test, not added to leads`);
+      toast(
+        data.background
+          ? `Calling ${testPhone.trim()} now — scraped background applied`
+          : `Calling ${testPhone.trim()} now — this is a one-off test, not added to leads`
+      );
       setTestPhone("");
+      setTestContactName("");
+      setTestBackground("");
+      setTestProfileUrl("");
     } finally {
       setTestCalling(false);
     }
@@ -192,6 +207,30 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <Field label="Phone number">
               <input className={inputClass} value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+1 555 123 4567" required />
             </Field>
+            <Field label="Contact name (optional)" hint="The agent will ask for this person by name, and handle a receptionist/gatekeeper professionally.">
+              <input className={inputClass} value={testContactName} onChange={(e) => setTestContactName(e.target.value)} placeholder="Alex Rivera" />
+            </Field>
+            <Field
+              label="Background (optional)"
+              hint="Typed here, or auto-filled below from a profile URL — either way it's used to personalize the pitch to them specifically."
+            >
+              <textarea
+                className={inputClass}
+                rows={3}
+                value={testBackground}
+                onChange={(e) => setTestBackground(e.target.value)}
+                placeholder="Runs a 12-person landscaping company, recently expanded to a second city…"
+              />
+            </Field>
+            <Field label="…or auto-fill from a profile URL" hint="LinkedIn, company About page, etc. Scraped only if Background above is left blank.">
+              <input
+                className={inputClass}
+                value={testProfileUrl}
+                onChange={(e) => setTestProfileUrl(e.target.value)}
+                placeholder="https://linkedin.com/in/…"
+                disabled={!!testBackground.trim()}
+              />
+            </Field>
             <Button type="submit" variant="ghost" disabled={testCalling}>
               {testCalling ? "Calling…" : "Call this number"}
             </Button>
@@ -219,6 +258,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   <th className="py-2">Name</th>
                   <th className="py-2">Phone</th>
                   <th className="py-2">Status</th>
+                  <th className="py-2">Background</th>
                   <th className="py-2">Note</th>
                 </tr>
               </thead>
@@ -229,6 +269,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <td className="py-2 font-mono text-text-dim">{l.phone}</td>
                     <td className="py-2">
                       <Pill value={l.status} />
+                    </td>
+                    <td className="py-2 max-w-xs truncate text-xs text-text-faint" title={l.background ?? ""}>
+                      {l.background ?? ""}
                     </td>
                     <td className="py-2 text-xs text-text-faint">{l.note ?? ""}</td>
                   </tr>

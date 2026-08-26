@@ -45,7 +45,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const body = await request.json().catch(() => null);
       if (!body?.phone) return NextResponse.json({ error: "phone is required" }, { status: 400 });
       imported = await bulkImportLeads(id, [
-        { name: body.name?.trim() || body.phone, phone: body.phone.trim(), email: body.email?.trim() || null },
+        {
+          name: body.name?.trim() || body.phone,
+          phone: body.phone.trim(),
+          email: body.email?.trim() || null,
+          background: body.background?.trim() || null,
+        },
       ]);
     }
 

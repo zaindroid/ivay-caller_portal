@@ -53,6 +53,13 @@ export function callParamsFromBotConfig(config: Record<string, unknown>) {
   return { task, voice, language, firstSentence, knowledgeBaseIds: knowledgeBaseId ? [knowledgeBaseId] : undefined };
 }
 
+/** Per-call personalization tokens for the compiled task's Personalization
+ * block (see lib/prompt-compiler.ts) -- resolved by Bland via request_data,
+ * not baked into the stored task string. */
+export function personalizationRequestData(name?: string | null, background?: string | null) {
+  return { contact_name: name?.trim() || "", contact_background: background?.trim() || "" };
+}
+
 /** Places calls for a campaign's next pending leads, up to its maxConcurrent. */
 export async function dialNext(campaignId: string) {
   const campaign = await prisma.campaign.findUnique({
@@ -85,6 +92,7 @@ export async function dialNext(campaignId: string) {
         language,
         firstSentence,
         knowledgeBaseIds,
+        requestData: personalizationRequestData(lead.name, lead.background),
         webhookUrl: webhookUrl(),
         metadata: { leadId: lead.id, campaignId },
       });

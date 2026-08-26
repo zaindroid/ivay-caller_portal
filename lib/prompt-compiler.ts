@@ -11,6 +11,15 @@
  * value stays visible in the output (`{{business_name}}`) rather than
  * silently disappearing, so an unfinished agent is obvious in the preview
  * instead of shipping a prompt with a hole in it.
+ *
+ * The compiled task always ends with a Personalization block using
+ * {{contact_name}}/{{contact_background}} tokens left deliberately
+ * unresolved here -- these aren't in `variables` (which is fixed per bot
+ * config), they're filled in per call via Bland's request_data (see
+ * lib/telephony/bland.ts, lib/dialer/engine.ts) from whatever name/
+ * background is attached to that specific lead or test call. This makes
+ * every bot config personalization-aware without editing individual
+ * presets.
  */
 
 export type PromptFields = {
@@ -35,6 +44,7 @@ export function compilePrompt(fields: PromptFields, variables: PromptVariables =
     fields.background.trim() && `Background:\n${sub(fields.background)}`,
     fields.guardrails.trim() && `Guidelines:\n${sub(fields.guardrails)}`,
     fields.exampleDialogue.trim() && `Example Dialogue:\n${sub(fields.exampleDialogue)}`,
+    "Personalization for this call:\nContact to reach: {{contact_name}}\nWhat you know about them: {{contact_background}}\n(Either line may come through blank -- if so, proceed with whoever answers and a generic pitch instead.)",
   ].filter(Boolean);
   return sections.join("\n\n");
 }

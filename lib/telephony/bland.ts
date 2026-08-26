@@ -25,6 +25,11 @@ export type PlaceCallInput = {
   firstSentence?: string;
   /** Knowledge base ids the agent can draw on mid-call instead of guessing. */
   knowledgeBaseIds?: string[];
+  /** Per-call template variables -- Bland substitutes {{key}} tokens in
+   *  `task` with these values before the call starts. Used for personalizing
+   *  a shared prompt to the specific person being called (contact_name,
+   *  contact_background) without editing the stored task string per call. */
+  requestData?: Record<string, string>;
   webhookUrl: string;
   metadata: Record<string, string>;
 };
@@ -54,6 +59,7 @@ export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult>
       language: input.language || undefined,
       first_sentence: input.firstSentence || undefined,
       knowledge_base_ids: input.knowledgeBaseIds?.length ? input.knowledgeBaseIds : undefined,
+      request_data: input.requestData && Object.keys(input.requestData).length ? input.requestData : undefined,
       // Bland rejects non-https webhooks outright -- in local dev APP_URL is
       // http://localhost, which can't be one anyway (Bland can't reach it),
       // so omit it there rather than failing the call. Call status just

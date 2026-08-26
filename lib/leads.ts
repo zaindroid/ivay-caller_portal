@@ -1,7 +1,7 @@
 import { parse } from "csv-parse/sync";
 import { prisma } from "@/lib/db";
 
-export type ParsedLead = { name: string; phone: string; email: string | null };
+export type ParsedLead = { name: string; phone: string; email: string | null; background: string | null };
 
 /** Ported from the prototype's CSV upload handler (phone normalization, name fallback). */
 export function parseLeadsCsv(csvText: string): ParsedLead[] {
@@ -20,7 +20,8 @@ export function parseLeadsCsv(csvText: string): ParsedLead[] {
     if (!phone) continue;
     const name = row.name || row.Name || row.first_name || phone;
     const email = row.email || row.Email || null;
-    leads.push({ name, phone, email });
+    const background = row.background || row.Background || row.notes || row.Notes || null;
+    leads.push({ name, phone, email, background });
   }
   return leads;
 }
@@ -28,7 +29,7 @@ export function parseLeadsCsv(csvText: string): ParsedLead[] {
 export async function bulkImportLeads(campaignId: string, leads: ParsedLead[]) {
   if (leads.length === 0) return 0;
   const result = await prisma.lead.createMany({
-    data: leads.map((l) => ({ campaignId, name: l.name, phone: l.phone, email: l.email })),
+    data: leads.map((l) => ({ campaignId, name: l.name, phone: l.phone, email: l.email, background: l.background })),
   });
   return result.count;
 }
