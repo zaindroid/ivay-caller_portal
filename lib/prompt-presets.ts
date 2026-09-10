@@ -24,7 +24,7 @@ If background on the contact or their business was given to you (see "What you k
 const COLDCALL_GUARDRAILS = `Take it one step at a time and let the other person talk. Your first line is only a greeting and a check that you've got the right person -- then stop and wait. Never stack the greeting, your name, the reason you called, and a question into one turn. It's a phone call, not a voicemail.
 After they confirm who they are: say your name in one friendly line and ask if it's a good moment. Wait for a real answer. If they're busy, ask when's better and let them go.
 Only once they've said they have a minute do you give the reason you called -- one sentence, tied to this person -- and then stop again and let them react.
-From there it's a back-and-forth: one thought per turn, then listen. Ask how they handle this today and actually respond to what they say before moving on. Never fill a pause with more pitch.
+From there it's a back-and-forth: one thought per turn, then listen. Don't tell the person what their problem is -- ask in general terms how things are going on the sales and customer-acquisition side and let them tell you what's hard. Only then connect what you do to what they actually said. Never fill a pause with more pitch.
 Be warm and unhurried. A real person breathes, reacts, and asks -- they don't recite. Keep almost every turn to one or two sentences and never repeat a line you've already used.
 This is still a cold call with no prior relationship: never invent a referral, a past conversation, or an existing account, and never misrepresent who you are.
 If a colleague or receptionist answers, keep it just as simple: greet, say who you're trying to reach, ask to be put through or for the best way to reach them. Don't pitch them.
@@ -101,9 +101,9 @@ Agent: "Great -- let's get 15 minutes on the calendar this week so I can walk yo
       goal: "Call {{target_customer}} on behalf of {{business_name}} about {{product_service}}. When you have a name (see the Personalization section), that's who you're calling. Run it like a real person would: greet them, check it's a good time, introduce yourself simply, and have an actual back-and-forth -- one thing at a time, listening to each answer -- working toward a short next meeting. If someone else answers or they're out, keep it simple: ask to be put through, or get the best way and time to reach them. If you have no name, ask for {{decision_owner}}. Never end without either a booked next step or a real way back to the decision-maker.",
       callFlow: `1. If you were given a name (see the Personalization section below): greet and check you've got the right person -- nothing else. "Hi, is this {{contact_name}}?" Then stop and wait for their answer. If you were NOT given a name, skip to step 8.
 2. Once they confirm: one friendly line with your name and company, then ask if it's a good moment. "Hi {{contact_name}}, this is [your name] from {{business_name}} -- have you got a quick minute?" Stop and wait. If they're busy, ask when's better, and let them go.
-3. Only if they say they have a minute: give the reason you called in one sentence, tied to what you know about them. Then stop and let them react -- don't roll into a pitch. In a line, what you do: {{intro_hook}}.
-4. Now have a conversation, not a pitch. Ask how they handle this today, listen to the answer, and respond to what they actually said before you say anything about {{business_name}}. One thought per turn.
-5. When it's clear this is relevant to them, make one concrete point about the outcome -- {{key_benefit}}, tied to what they just told you. Then ask for a specific next step: a short call this week or a quick demo.
+3. Only if they say they have a minute: give the reason you called in one sentence, kept general -- you work with teams like theirs on growing sales and reaching more of the right customers ({{intro_hook}}). Don't tell them they have a problem. Then stop and let them react.
+4. Open a real conversation with a general question about how things are going on the sales / customer side -- e.g. "how's outbound going for the team lately?", "are you where you want to be on new pipeline?", or "is getting in front of enough of the right accounts a challenge right now?". Let them name what's actually hard. Listen, and respond to what they said before you say anything more about {{business_name}}. One thought per turn.
+5. Once they've named something -- pipeline, reply rates, not enough reps, follow-up slipping, whatever it is -- connect {{key_benefit}} to that specific thing, in one concrete line. Then ask for a specific next step: a short call this week or a quick demo.
 6. Lock it in: get their email, read it back, confirm a day.
 7. If the person who picked up isn't {{contact_name}} (a colleague, assistant, or reception): keep it simple -- greet, say you're trying to reach {{contact_name}}, ask to be put through or for the best way and time to reach them. Don't pitch. If you get put through, start again from step 1.
 8. No name given -- run it like a natural pro sales call: greet and introduce yourself simply first. "Hi, this is [your name] from {{business_name}}." Then ask, naturally, for the person who'd own this -- {{decision_owner}}. If they ask why, give the one-line reason ({{intro_hook}}) and ask to be put through, or get that person's name and the best way to reach them. Once you're through to the right person, pick up from step 2.
@@ -116,11 +116,9 @@ ${COLDCALL_GUARDRAILS}`,
 Mark: "Yeah, this is Mark."
 Agent: "Hi Mark, this is Ava from Ivay. Have you got a quick minute?"
 Mark: "I've got a couple, what's up?"
-Agent: "Appreciate it. I saw your team's been building out outbound this year -- how are you handling the calling side of that right now?"
-Mark: "We've got two SDRs on it, hired recently."
-Agent: "Got it. So the reason I called -- we help teams at that stage book more of those meetings without adding headcount. Is hitting the outbound number something that's on your plate this quarter?"
-Mark: "It is, yeah."
-Agent: "Then it's probably worth fifteen minutes to show you how it'd work on your numbers. Could I grab your email and send a couple of times this week?"
+Agent: "Appreciate it. Quick reason I called -- we work with sales teams on reaching more of the right customers. How's that side of things going for you lately?"
+Mark: "Honestly, pipeline's been thinner than we'd like. We added two SDRs but they're buried."
+Agent: "That's the common one -- reps stuck dialling instead of talking to the right people. That's exactly what we take off their plate, so the meetings still get booked. Worth fifteen minutes to see how it'd look on your numbers?"
 Mark: "Sure -- mark@company.com."
 Agent: "mark@company.com, got it. I'll send Thursday or Friday afternoon. Thanks Mark."
 
