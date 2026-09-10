@@ -1,12 +1,20 @@
 "use client";
 
-import { use, useCallback, useRef, useState } from "react";
+import { Fragment, use, useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, StatTile, Pill, Button, Field, inputClass } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { usePolling } from "@/hooks/use-polling";
 
-type Lead = { id: string; name: string; phone: string; status: string; note: string | null; background: string | null };
+type Lead = {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  note: string | null;
+  background: string | null;
+  externalCallId: string | null;
+};
 type PhoneNumber = { id: string; number: string; region: string };
 type CampaignDetail = {
   id: string;
@@ -38,6 +46,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [testContactName, setTestContactName] = useState("");
   const [testBackground, setTestBackground] = useState("");
   const [testProfileUrl, setTestProfileUrl] = useState("");
+  const [playingCallId, setPlayingCallId] = useState<string | null>(null);
+  const [recordingCallId, setRecordingCallId] = useState("");
 
   const load = useCallback(async () => {
     const [detailRes, leadsRes, numbersRes] = await Promise.all([
@@ -275,6 +285,31 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         </Card>
       </div>
 
+      <Card title="Play a recording by call ID">
+        <p className="mb-3 max-w-2xl text-xs text-text-dim">
+          Every call placed here is recorded — real leads show a Play button below, but a one-off test call isn&apos;t
+          tied to a lead. Paste its call ID (shown when you placed it, and in Logs) to play it back.
+        </p>
+        <div className="flex max-w-lg items-end gap-3">
+          <div className="flex-1">
+            <Field label="Call ID">
+              <input className={inputClass} value={recordingCallId} onChange={(e) => setRecordingCallId(e.target.value)} placeholder="a1b2c3…" />
+            </Field>
+          </div>
+          <Button
+            variant="ghost"
+            onClick={() => recordingCallId.trim() && setPlayingCallId(playingCallId === recordingCallId.trim() ? null : recordingCallId.trim())}
+          >
+            {playingCallId === recordingCallId.trim() && recordingCallId.trim() ? "Hide" : "Play"}
+          </Button>
+        </div>
+        {recordingCallId.trim() && playingCallId === recordingCallId.trim() && (
+          <audio controls autoPlay className="mt-3 w-full max-w-lg" src={`/api/ops/calls/${recordingCallId.trim()}/recording`}>
+            Your browser doesn&apos;t support inline audio playback.
+          </audio>
+        )}
+      </Card>
+
       <Card title={`Leads (${leadTotal})`}>
         {leads.length === 0 ? (
           <p className="text-sm text-text-faint">No leads uploaded yet.</p>
@@ -288,21 +323,45 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   <th className="py-2">Status</th>
                   <th className="py-2">Background</th>
                   <th className="py-2">Note</th>
+                  <th className="py-2">Recording</th>
                 </tr>
               </thead>
               <tbody>
                 {leads.map((l) => (
-                  <tr key={l.id} className="border-b border-border last:border-0">
-                    <td className="py-2 font-medium">{l.name}</td>
-                    <td className="py-2 font-mono text-text-dim">{l.phone}</td>
-                    <td className="py-2">
-                      <Pill value={l.status} />
-                    </td>
-                    <td className="py-2 max-w-xs truncate text-xs text-text-faint" title={l.background ?? ""}>
-                      {l.background ?? ""}
-                    </td>
-                    <td className="py-2 text-xs text-text-faint">{l.note ?? ""}</td>
-                  </tr>
+                  <Fragment key={l.id}>
+                    <tr className="border-b border-border last:border-0">
+                      <td className="py-2 font-medium">{l.name}</td>
+                      <td className="py-2 font-mono text-text-dim">{l.phone}</td>
+                      <td className="py-2">
+                        <Pill value={l.status} />
+                      </td>
+                      <td className="py-2 max-w-xs truncate text-xs text-text-faint" title={l.background ?? ""}>
+                        {l.background ?? ""}
+                      </td>
+                      <td className="py-2 text-xs text-text-faint">{l.note ?? ""}</td>
+                      <td className="py-2">
+                        {l.externalCallId ? (
+                          <button
+                            className="text-xs font-semibold text-primary-hi hover:underline"
+                            onClick={() => setPlayingCallId(playingCallId === l.externalCallId ? null : l.externalCallId)}
+                          >
+                            {playingCallId === l.externalCallId ? "Hide" : "▶ Play"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-text-faint">—</span>
+                        )}
+                      </td>
+                    </tr>
+                    {playingCallId === l.externalCallId && l.externalCallId && (
+                      <tr className="border-b border-border last:border-0">
+                        <td colSpan={6} className="py-2">
+                          <audio controls autoPlay className="w-full" src={`/api/ops/calls/${l.externalCallId}/recording`}>
+                            Your browser doesn&apos;t support inline audio playback.
+                          </audio>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

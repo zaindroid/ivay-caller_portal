@@ -86,6 +86,11 @@ export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult>
       webhook: input.webhookUrl.startsWith("https://") ? input.webhookUrl : undefined,
       metadata: input.metadata,
       max_duration: 15,
+      // Every call this portal places gets recorded -- retrieved on demand
+      // through getCallRecording() below, never stored by us. Applies to
+      // real leads and one-off test calls alike, so ops can listen back to
+      // either afterward.
+      record: true,
     }),
   });
 
@@ -279,6 +284,32 @@ export async function getCallListenUrl(callId: string): Promise<string> {
     );
   }
   return url;
+}
+
+// ── Recorded playback (listen to a finished call later) ──────────────────
+// Every call this portal places sets record: true (see placeCall above).
+// The recording itself lives on Bland's side, not ours -- this just streams
+// it through on demand, authenticated with our API key so the key never
+// reaches the browser. See app/api/ops/calls/[callId]/recording/route.ts.
+
+export type CallRecording = { body: ReadableStream<Uint8Array> | null; contentType: string };
+
+export async function getCallRecording(callId: string): Promise<CallRecording> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v1/calls/${callId}/recording`, {
+    headers: { authorization: apiKey },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    const errs = data?.errors as { message?: string; error?: string }[] | undefined;
+    const notFound = errs?.some((e) => e.error === "CALL_RECORDING_NOT_FOUND");
+    throw new Error(
+      notFound
+        ? "No recording is available for this call yet -- it may still be in progress, or wasn't recorded."
+        : errs?.[0]?.message || `Could not fetch the recording (${res.status})`
+    );
+  }
+  return { body: res.body, contentType: res.headers.get("content-type") || "audio/wav" };
 }
 
 export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {
