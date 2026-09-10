@@ -300,13 +300,18 @@ export async function getCallRecording(callId: string): Promise<CallRecording> {
     headers: { authorization: apiKey },
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    const errs = data?.errors as { message?: string; error?: string }[] | undefined;
-    const notFound = errs?.some((e) => e.error === "CALL_RECORDING_NOT_FOUND");
+    // Observed shapes differ from the documented {errors:[...]} -- a plain
+    // JSON string ("Error no recordings found") has been seen in practice
+    // for a 404, so check every shape rather than trusting one.
+    const data: unknown = await res.json().catch(() => null);
+    const errs = (data as { errors?: { message?: string; error?: string }[] } | null)?.errors;
+    const flatMsg = typeof data === "string" ? data : (data as { message?: string } | null)?.message;
+    const combined = [errs?.[0]?.error, errs?.[0]?.message, flatMsg].filter(Boolean).join(" ");
+    const notFound = res.status === 404 || /no recording|not found/i.test(combined);
     throw new Error(
       notFound
         ? "No recording is available for this call yet -- it may still be in progress, or wasn't recorded."
-        : errs?.[0]?.message || `Could not fetch the recording (${res.status})`
+        : combined || `Could not fetch the recording (${res.status})`
     );
   }
   return { body: res.body, contentType: res.headers.get("content-type") || "audio/wav" };
