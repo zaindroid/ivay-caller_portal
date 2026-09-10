@@ -266,11 +266,17 @@ export async function getCallListenUrl(callId: string): Promise<string> {
     body: "{}",
   });
   const data = await blandJson(res, "starting live listen");
+  // Success shape is { data: { url, expires_in_seconds }, errors: null } --
+  // there is no top-level status field, so key off the url being present.
   const url = (data?.data as { url?: string } | undefined)?.url;
-  if (!res.ok || data?.status !== "success" || !url) {
+  if (!res.ok || !url) {
     const errs = data?.errors as { message?: string }[] | undefined;
     const msg = errs?.[0]?.message || (data?.message as string) || `Could not start live listen (${res.status})`;
-    throw new Error(/live.?listen/i.test(msg) ? `${msg} — enable "Live Listen" in the telephony account settings.` : msg);
+    throw new Error(
+      /org preferences|not allow live listen|live.?listen(ing)? (is )?(not|disabled)/i.test(msg)
+        ? `${msg} — enable "Live Listen" in the telephony account settings.`
+        : msg
+    );
   }
   return url;
 }
