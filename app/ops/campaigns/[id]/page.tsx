@@ -7,12 +7,14 @@ import { useToast } from "@/components/toast";
 import { usePolling } from "@/hooks/use-polling";
 
 type Lead = { id: string; name: string; phone: string; status: string; note: string | null; background: string | null };
+type PhoneNumber = { id: string; number: string; region: string };
 type CampaignDetail = {
   id: string;
   name: string;
   status: string;
   maxConcurrent: number;
-  phoneNumber: { number: string; region: string } | null;
+  phoneNumberId: string | null;
+  phoneNumber: { id: string; number: string; region: string } | null;
   botConfig: { name: string; config: { language?: string; task?: string } } | null;
   account: { id: string; name: string };
 };
@@ -25,6 +27,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const toast = useToast();
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
+  const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadTotal, setLeadTotal] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -37,9 +40,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [testProfileUrl, setTestProfileUrl] = useState("");
 
   const load = useCallback(async () => {
-    const [detailRes, leadsRes] = await Promise.all([
+    const [detailRes, leadsRes, numbersRes] = await Promise.all([
       fetch(`/api/ops/campaigns/${id}`),
       fetch(`/api/ops/campaigns/${id}/leads?limit=50`),
+      fetch(`/api/ops/numbers`),
     ]);
     const detail = await detailRes.json();
     setCampaign(detail.campaign ?? null);
@@ -47,7 +51,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     const leadsData = await leadsRes.json();
     setLeads(leadsData.leads ?? []);
     setLeadTotal(leadsData.total ?? 0);
+    setNumbers((await numbersRes.json()).numbers ?? []);
   }, [id]);
+
+  async function assignNumber(phoneNumberId: string) {
+    const res = await fetch(`/api/ops/campaigns/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumberId: phoneNumberId || null }),
+    });
+    if (!res.ok) return toast((await res.json()).error ?? "Could not set number", "error");
+    toast(phoneNumberId ? "Caller ID updated" : "Caller ID cleared — using the default outbound number");
+    load();
+  }
 
   usePolling(load, 3000);
 
@@ -163,13 +179,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         <Card title="Assignment" className="col-span-1">
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-text-dim">Number</dt>
-              <dd className="font-mono">{campaign.phoneNumber?.number ?? "— unassigned —"}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-text-dim">Region</dt>
-              <dd>{campaign.phoneNumber?.region ?? "—"}</dd>
+            <div>
+              <dt className="mb-1 text-text-dim">Caller ID (outbound number)</dt>
+              <dd>
+                <select
+                  className={inputClass}
+                  value={campaign.phoneNumber?.id ?? ""}
+                  onChange={(e) => assignNumber(e.target.value)}
+                >
+                  <option value="">Default outbound number</option>
+                  {numbers.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.number} · {n.region}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs text-text-faint">
+                  Add numbers on the Numbers page. Only use a number you&apos;re authorised to present as caller ID.
+                </span>
+              </dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-text-dim">Voice agent</dt>
