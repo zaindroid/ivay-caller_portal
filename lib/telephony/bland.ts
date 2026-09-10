@@ -14,6 +14,24 @@ function requireEnv(name: string): string {
   return value;
 }
 
+/**
+ * Bland normally answers with JSON, but a gateway error or a rate-limit
+ * response comes back as an HTML page — `res.json()` on that throws an
+ * opaque "Unexpected token '<'" SyntaxError. Parse defensively so callers
+ * get a message that says what actually happened.
+ */
+async function blandJson(res: Response, action: string): Promise<Record<string, unknown>> {
+  const raw = await res.text();
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    if (res.status === 429 || /rate.?limit|too many requests/i.test(raw)) {
+      throw new Error(`Telephony backend is rate-limiting requests — wait a moment and try again (${action}).`);
+    }
+    throw new Error(`Telephony backend returned an unexpected ${res.status} response (${action}).`);
+  }
+}
+
 export type PlaceCallInput = {
   to: string;
   /** Omit to let Bland use its own default outbound number. Only needed for
@@ -71,11 +89,11 @@ export async function placeCall(input: PlaceCallInput): Promise<PlaceCallResult>
     }),
   });
 
-  const data = await res.json();
+  const data = await blandJson(res, "placing call");
   if (!res.ok || data.status !== "success") {
-    throw new Error(data.message || `Bland call request failed (${res.status})`);
+    throw new Error((data.message as string) || `Call request failed (${res.status})`);
   }
-  return { callId: data.call_id };
+  return { callId: data.call_id as string };
 }
 
 /** Shape of the POST body Bland sends to our webhook when a call ends. */
@@ -194,11 +212,11 @@ export async function analyzeCall(callId: string, goal: string, questions: [stri
     headers: { authorization: apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({ goal, questions }),
   });
-  const data = await res.json();
+  const data = await blandJson(res, "analyzing call");
   if (!res.ok || data.status !== "success") {
-    throw new Error(data.message || `Call analysis failed (${res.status})`);
+    throw new Error((data.message as string) || `Call analysis failed (${res.status})`);
   }
-  return data.answers;
+  return data.answers as AnalyzeAnswer[];
 }
 
 // ── Live call monitoring (shadow listen) ─────────────────────────────────
@@ -222,11 +240,12 @@ export async function listActiveCalls(): Promise<ActiveCall[]> {
   const res = await fetch(`${BLAND_API_BASE}/v1/calls/active`, {
     headers: { authorization: apiKey },
   });
-  const data = await res.json();
+  const data = await blandJson(res, "listing active calls");
   if (!res.ok || data?.errors) {
-    throw new Error(data?.errors?.[0]?.message || `Failed to list active calls (${res.status})`);
+    const errs = data?.errors as { message?: string }[] | undefined;
+    throw new Error(errs?.[0]?.message || `Failed to list active calls (${res.status})`);
   }
-  return (data.data || []).map((c: Record<string, unknown>) => ({
+  return ((data.data as Record<string, unknown>[]) || []).map((c: Record<string, unknown>) => ({
     callId: String(c.call_id ?? c.c_id ?? ""),
     to: String(c.to ?? ""),
     from: String(c.from ?? ""),
@@ -246,12 +265,14 @@ export async function getCallListenUrl(callId: string): Promise<string> {
     headers: { authorization: apiKey, "Content-Type": "application/json" },
     body: "{}",
   });
-  const data = await res.json();
-  if (!res.ok || data?.status !== "success" || !data?.data?.url) {
-    const msg = data?.errors?.[0]?.message || data?.message || `Could not start live listen (${res.status})`;
+  const data = await blandJson(res, "starting live listen");
+  const url = (data?.data as { url?: string } | undefined)?.url;
+  if (!res.ok || data?.status !== "success" || !url) {
+    const errs = data?.errors as { message?: string }[] | undefined;
+    const msg = errs?.[0]?.message || (data?.message as string) || `Could not start live listen (${res.status})`;
     throw new Error(/live.?listen/i.test(msg) ? `${msg} — enable "Live Listen" in the telephony account settings.` : msg);
   }
-  return data.data.url as string;
+  return url;
 }
 
 export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {

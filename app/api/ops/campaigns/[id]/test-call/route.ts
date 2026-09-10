@@ -44,14 +44,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!campaign.botConfig) return NextResponse.json({ error: "This campaign has no voice agent assigned" }, { status: 400 });
 
     const callParams = callParamsFromBotConfig((campaign.botConfig.config as Record<string, unknown>) || {});
-    const { callId } = await placeCall({
-      to: phone,
-      from: campaign.phoneNumber?.number,
-      ...callParams,
-      requestData: personalizationRequestData(contactName, background),
-      webhookUrl: webhookUrl(),
-      metadata: { test: "true", campaignId: id },
-    });
+    let callId: string;
+    try {
+      ({ callId } = await placeCall({
+        to: phone,
+        from: campaign.phoneNumber?.number,
+        ...callParams,
+        requestData: personalizationRequestData(contactName, background),
+        webhookUrl: webhookUrl(),
+        metadata: { test: "true", campaignId: id },
+      }));
+    } catch (e) {
+      // Surface the telephony backend's own message (bad number, rate limit,
+      // gateway hiccup) instead of a generic 500. 400, not 5xx: a 5xx body
+      // gets swapped for a proxy error page and the reason is lost.
+      addLog("warn", `Test call to ${phone} failed: ${(e as Error).message}`);
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    }
     trackCall({
       callId,
       to: phone,
