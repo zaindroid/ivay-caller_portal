@@ -19,7 +19,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ca
       addLog("info", `Ops user ${session.userId} started shadow-listening call ${callId}`);
       return NextResponse.json({ url });
     } catch (e) {
-      return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+      // 409, not 5xx: the call itself is fine — this is a config/state problem
+      // (live-listen disabled, call already ended). A 5xx here also gets its
+      // body swapped for a generic proxy error page, hiding the reason.
+      return NextResponse.json({ error: (e as Error).message }, { status: 409 });
     }
   });
 }
