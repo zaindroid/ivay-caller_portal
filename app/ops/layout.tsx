@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/ops/accounts", label: "Accounts" },
   { href: "/ops/numbers", label: "Numbers" },
   { href: "/ops/bot-configs", label: "Voice Agents" },
+  { href: "/ops/live", label: "Live" },
   { href: "/ops/agents", label: "Agents" },
   { href: "/ops/logs", label: "Logs" },
 ];

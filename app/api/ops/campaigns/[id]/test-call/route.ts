@@ -4,6 +4,7 @@ import { requireOps, guarded } from "@/lib/guards";
 import { placeCall } from "@/lib/telephony/bland";
 import { callParamsFromBotConfig, personalizationRequestData, webhookUrl } from "@/lib/dialer/engine";
 import { addLog } from "@/lib/dialer/logs";
+import { trackCall } from "@/lib/dialer/active-calls";
 import { scrapeProfileText } from "@/lib/scrape";
 
 /**
@@ -50,6 +51,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       requestData: personalizationRequestData(contactName, background),
       webhookUrl: webhookUrl(),
       metadata: { test: "true", campaignId: id },
+    });
+    trackCall({
+      callId,
+      to: phone,
+      label: `Test · ${campaign.botConfig.name}${contactName ? ` · ${contactName}` : ""}`,
+      campaignId: id,
     });
     addLog(
       "info",

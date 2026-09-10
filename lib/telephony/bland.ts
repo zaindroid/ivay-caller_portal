@@ -201,6 +201,59 @@ export async function analyzeCall(callId: string, goal: string, questions: [stri
   return data.answers;
 }
 
+// ── Live call monitoring (shadow listen) ─────────────────────────────────
+// Bland exposes a per-call WebSocket that streams the live call audio as raw
+// PCM (Int16, 16 kHz, mono). An ops user can subscribe to it read-only while
+// a call is in progress -- neither party hears them. Requires "Live Listen"
+// to be enabled in the Bland org settings.
+
+export type ActiveCall = {
+  callId: string;
+  to: string;
+  from: string;
+  status: string;
+  startedAt: string | null;
+  objective: string | null;
+};
+
+/** All calls currently queued or in progress on the telephony account. */
+export async function listActiveCalls(): Promise<ActiveCall[]> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v1/calls/active`, {
+    headers: { authorization: apiKey },
+  });
+  const data = await res.json();
+  if (!res.ok || data?.errors) {
+    throw new Error(data?.errors?.[0]?.message || `Failed to list active calls (${res.status})`);
+  }
+  return (data.data || []).map((c: Record<string, unknown>) => ({
+    callId: String(c.call_id ?? c.c_id ?? ""),
+    to: String(c.to ?? ""),
+    from: String(c.from ?? ""),
+    status: String(c.status ?? ""),
+    startedAt: (c.start_time as string) || null,
+    objective: (c.objective as string) || null,
+  }));
+}
+
+/** Returns the WebSocket URL an ops browser connects to in order to hear a
+ *  live call. The URL carries its own short-lived token -- it only grants
+ *  listen access to this one call, so it's safe to hand to the client. */
+export async function getCallListenUrl(callId: string): Promise<string> {
+  const apiKey = requireEnv("BLAND_API_KEY");
+  const res = await fetch(`${BLAND_API_BASE}/v1/calls/${callId}/listen`, {
+    method: "POST",
+    headers: { authorization: apiKey, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  const data = await res.json();
+  if (!res.ok || data?.status !== "success" || !data?.data?.url) {
+    const msg = data?.errors?.[0]?.message || data?.message || `Could not start live listen (${res.status})`;
+    throw new Error(/live.?listen/i.test(msg) ? `${msg} — enable "Live Listen" in the telephony account settings.` : msg);
+  }
+  return data.data.url as string;
+}
+
 export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {
   const apiKey = requireEnv("BLAND_API_KEY");
   const res = await fetch(`${BLAND_API_BASE}/v1/knowledge/${id}`, {

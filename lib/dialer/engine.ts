@@ -3,6 +3,7 @@ import { ami, isAmiConnected } from "./ami";
 import { addLog } from "./logs";
 import { placeCall, analyzeCall, type BlandWebhookPayload } from "@/lib/telephony/bland";
 import { sendSchedulingEmail } from "@/lib/email";
+import { trackCall, untrackCall } from "./active-calls";
 
 /**
  * Multi-campaign outbound dialing engine. Campaign calls are placed through
@@ -97,6 +98,7 @@ export async function dialNext(campaignId: string) {
         metadata: { leadId: lead.id, campaignId },
       });
       await prisma.lead.update({ where: { id: lead.id }, data: { status: "DIALING", externalCallId: callId } });
+      trackCall({ callId, to: lead.phone, label: `${campaign.name} · ${lead.name}`, campaignId });
       addLog("info", `Dialing ${lead.name} at ${lead.phone} (call ${callId})`);
       activeCount++; // only a real in-flight call consumes a concurrency slot
     } catch (e) {
@@ -154,6 +156,8 @@ export async function handleCallWebhook(payload: BlandWebhookPayload) {
     : campaignId
       ? await prisma.lead.findFirst({ where: { externalCallId: payload.call_id } })
       : null;
+
+  untrackCall(payload.call_id);
 
   if (lead) {
     if (lead.status !== "DIALING") return; // already handled (duplicate webhook delivery)
